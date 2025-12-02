@@ -205,7 +205,7 @@ jobs:
                   # Create the custom commit message
                   COMMIT_MESSAGE="Report Update: ${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES"
                   
-                  git commit -m "$COMMIT_MESSAGE" --allow-empty
+                  git commit -m "$COMMIT_MESSAGE" 
                   git push origin main --force
                   echo "Successfully pushed report changes to the reports repository."
                   echo "Commit Message: $COMMIT_MESSAGE"
