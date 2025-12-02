@@ -214,6 +214,7 @@ jobs:
       name: Running Build
       runs-on: ubuntu-latest
       needs: [sast, sbom_generator, secret_detection, sca]
+      if: always()
       env:
         BREAK_ON_FAILURE_FLAG: ${{ inputs.break_on_failure }}
       steps:
