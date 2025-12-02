@@ -156,9 +156,18 @@ jobs:
                env: 
                 REPO_NAME: ${{ github.event.repository.name }}
                run: |
-                  echo "Checking Repo's existance"
+                  echo "Checking Repo's existance and deleting it if it exists"
                   if [ -d "reports-repo/$REPO_NAME" ]; then
-                    echo "folder exists"
+                    echo "folder exists, so removing it"
+                    rm -rf reports-repo/$REPO_NAME
+                    git add reports-repo/*
+                    
+                    git config user.name "github-actions[bot]"
+                    git config user.email "github-actions[bot]@users.noreply.github.com"
+                    
+                    git commit -m "removing previous Reports [Skip-ci]"
+                    git push origin main
+                    mkdir -p reports-repo/$REPO_NAME
                   else
                     echo "creating the folders"
                     mkdir -p reports-repo/$REPO_NAME
@@ -206,7 +215,7 @@ jobs:
                   COMMIT_MESSAGE="Report Update: ${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES"
                   
                   git commit -m "$COMMIT_MESSAGE" 
-                  git push origin main --force
+                  git push origin main
                   echo "Successfully pushed report changes to the reports repository."
                   echo "Commit Message: $COMMIT_MESSAGE"
 
