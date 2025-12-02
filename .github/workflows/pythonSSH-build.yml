@@ -1,4 +1,4 @@
-name: Build Pipeline
+name: Security Pipeline
 run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
 
 on:
@@ -8,7 +8,7 @@ on:
         required: false
         type: boolean
         default: true # Set to true for normal flow else Set to false for extreme worst case emergency deployment
-      serviceVersion:
+      serviceVersion: # not required but good to have
         required: false
         type: string
         default: "NA"
@@ -16,10 +16,34 @@ on:
         required: false
         type: string
         default: ${{ vars.repo_link }}  #not full url
+      language: # Python, SpringBoot, etc
+        required: false
+        type: string
+        default: Python
+      deploymen_type: # VM or Container
+        required: false
+        type: string
+        default: VM
+      languageVersion: # python or java version to setup env
+        required: false
+        type: string
+      runScript: # In case of a VM deployment, if any script have to be executed.
+        required: false
+        type: string
+      deploymentFolder:
+        required: false
+        type: string
     secrets:
       REPORTS_REPO_PAT:
         required: false
-        
+      REPORTS_REPO_PAT:
+        required: false
+      USER:
+        required: false
+      HOST:
+        required: false
+      SSH_PRIVATE_KEY:
+        required: false
 jobs:
     sast:
         name: Running SAST [BearerCLI] on project

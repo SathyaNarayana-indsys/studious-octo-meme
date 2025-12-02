@@ -1,0 +1,41 @@
+name: VM Deployment Pipeline
+run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
+
+on:
+  workflow_call:
+    inputs:
+      languageVersion: # python or java version to setup env
+        required: false
+        type: string
+      runScript: # In case of a VM deployment, if any script have to be executed.
+        required: false
+        type: string
+    secrets:
+      REPORTS_REPO_PAT:
+        required: false
+      USER:
+        required: false
+      HOST:
+        required: false
+      SSH_PRIVATE_KEY:
+        required: false
+
+jobs:
+    sast:
+        name: Running Python Build based on ${{ inputs.deployment_type }}
+        runs-on: ubuntu-latest 
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+          - name: Set up SSH Key
+            uses: webfactory/ssh-agent@v0.9.0
+            with:
+              ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY}}
+          - name: Deploy
+            run:  rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx ./ ${{ secrets.USER }}@${{ secrets.HOST }}:${{ vars.deploymentFolder }}
+          - name: Execute script on EC2
+            run: |
+                ssh ${{ secrets.USER }}@${{ secrets.HOST }} << 'EOF' 
+                  chmod +x ${{ vars.deploymentFolder }}/${{ vars.deploymentFile }}
+                  /bin/bash ${{ vars.deploymentFolder }}/${{ vars.deploymentFile }}
+                EOF
