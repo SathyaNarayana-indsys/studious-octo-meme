@@ -160,13 +160,15 @@ jobs:
                   if [ -d "reports-repo/$REPO_NAME" ]; then
                     echo "folder exists, so removing it"
                     rm -rf reports-repo/$REPO_NAME
-                    git add reports-repo/*
+                    cd reports-repo
+                    git add .
                     
                     git config user.name "github-actions[bot]"
                     git config user.email "github-actions[bot]@users.noreply.github.com"
                     
                     git commit -m "removing previous Reports [Skip-ci]"
                     git push origin main
+                    cd ../
                     mkdir -p reports-repo/$REPO_NAME
                   else
                     echo "creating the folders"
