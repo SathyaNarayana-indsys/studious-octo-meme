@@ -215,9 +215,9 @@ jobs:
             echo "$SECRET_REPORT" > "$REPO_FOLDER/secrets-results.json"
             echo "$SCA_REPORT" > "$REPO_FOLDER/sca-results.json"
             
-            cd reports-repo
+            cd "$REPO_FOLDER"
+            
             git add "test-dsvpwa/"
-
             
             # Determine which files were changed/added/deleted
             CHANGES=$(git status --porcelain | grep '^[AMRD]' | awk '{print $2}')
