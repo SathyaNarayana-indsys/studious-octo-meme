@@ -25,22 +25,23 @@ on:
         required: false
 
 jobs:
-    deploy:
-        name: Deploy to Host VM
-        runs-on: ubuntu-latest 
-        steps:
-          - name: Checkout code
-            uses: actions/checkout@v4
-          - name: Set up SSH Key
-            uses: webfactory/ssh-agent@v0.9.0
-            with:
-              ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY}}
-          - name: Deploy
-            run:  rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx ./ ${{ secrets.USER }}@${{ secrets.HOST }}:${{ inputs.deploymentFolder }}
-          - name: Execute script on VM
-            if : ${{inputs.executionRequired}}
-            run: |
-                ssh ${{ secrets.USER }}@${{ secrets.HOST }} << 'EOF' 
-                  chmod +x ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}
-                  /bin/bash ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}
-                EOF
+  deploy:
+    name: Deploy to Host VM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy
+        run: |
+          rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx ./ ${{ secrets.USER }}@${{ secrets.HOST }}:${{ inputs.deploymentFolder }}
+
+      - name: Execute script on VM
+        if: ${{ inputs.executionRequired }}
+        run: |
+          ssh ${{ secrets.USER }}@${{ secrets.HOST }} "chmod +x ${{ inputs.deploymentFolder }}/${{ inputs.runScript }} && /bin/bash ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}"
