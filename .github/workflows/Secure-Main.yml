@@ -176,7 +176,7 @@ jobs:
               run: |
                 REPO_URL=${{ inputs.repo_link }}
                 AUTH_URL=$(echo "$REPO_URL" | sed "s#https://#https://${{ secrets.REPORTS_REPO_PAT }}@#")
-                git clone "$REPO_URL" "${{ runner.temp }}/reports-repo"
+                git clone "$AUTH_URL" "${{ runner.temp }}/reports-repo"
 
             - name: Prepare Reports Folder
               env: 
