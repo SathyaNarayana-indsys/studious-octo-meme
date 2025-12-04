@@ -12,10 +12,10 @@ on:
         required: false
         type: string
         default: "NA"
-      # repo_link:
-      #   required: false
-      #   type: string
-      #   default: ${{ vars.REPO_LINK }}  #not full url
+      repo_link:
+        required: false
+        type: string
+        default: ${{ vars.REPO_LINK }}  #not full url
       deployment_type: # VM or Container
         required: false
         type: string
@@ -174,7 +174,7 @@ jobs:
                           
             - name: Checkout the reports repo
               run: |
-                REPO_URL=${{ vars.REPO_LINK }}
+                REPO_URL=${{ inputs.repo_link }}
                 AUTH_URL=$(echo "$REPO_URL" | sed "s#https://#https://${{ secrets.REPORTS_REPO_PAT }}@#")
                 git clone "$REPO_URL" "${{ runner.temp }}/reports-repo"
 
