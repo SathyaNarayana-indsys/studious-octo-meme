@@ -36,11 +36,11 @@ jobs:
             with:
               ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY}}
           - name: Deploy
-            run:  rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx ./ ${{ secrets.USER }}@${{ secrets.HOST }}:${{ vars.deploymentFolder }}
+            run:  rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx ./ ${{ secrets.USER }}@${{ secrets.HOST }}:${{ inputs.deploymentFolder }}
           - name: Execute script on VM
             if : ${{inputs.executionRequired}}
             run: |
                 ssh ${{ secrets.USER }}@${{ secrets.HOST }} << 'EOF' 
-                  chmod +x ${{ vars.deploymentFolder }}/${{ vars.runScript }}
-                  /bin/bash ${{ vars.deploymentFolder }}/${{ vars.runScript }}
+                  chmod +x ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}
+                  /bin/bash ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}
                 EOF
