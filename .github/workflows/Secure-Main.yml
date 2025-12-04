@@ -263,7 +263,7 @@ jobs:
           if: ${{ inputs.DryRun != true && inputs.BuildScript != '' }}
           uses: ./CustomBuild.yml
           with:
-            deployment_type:   ${{ $inputs.deployment_type }}
+            deployment_type:   ${{ inputs.deployment_type }}
             runScript:  ${{ inputs.runScript }}
             deploymentFolder: ${{ inputs.deploymentFolder }}
             BuildScript: ${{ inputs.BuildScript }}
@@ -271,12 +271,12 @@ jobs:
             USER: ${{ secrets.SSH_USER }}
             HOST: ${{ secrets.SSH_HOST }}
             SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-            
+
         - name: Direct Deploy Step
           if: ${{ inputs.DryRun != true && inputs.BuildScript == '' }}
           uses:  ./DirectDeployBuild.yml
           with:
-            deployment_type:   ${{ $inputs.deployment_type }}
+            deployment_type:   ${{ inputs.deployment_type }}
             runScript:  ${{ inputs.runScript }}
             deploymentFolder: ${{ inputs.deploymentFolder }}
             BuildScript: ${{ inputs.BuildScript }}
