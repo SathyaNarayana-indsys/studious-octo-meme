@@ -217,7 +217,7 @@ jobs:
             
             cd "$REPO_FOLDER"
             
-            git add "$REPO_FOLDER"
+            git add ./
             
             # Determine which files were changed/added/deleted
             CHANGES=$(git status --porcelain | grep '^[AMRD]' | awk '{print $2}')
