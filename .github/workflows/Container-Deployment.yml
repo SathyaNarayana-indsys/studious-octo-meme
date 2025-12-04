@@ -3,6 +3,17 @@ run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
 
 on:
   workflow_call:
+    inputs:
+      runScript: # In case of a VM/container deployment, if any script has to be executed.
+        required: false
+        type: string
+      deploymentFolder:
+        required: false
+        type: string
+      executionRequired:
+        required: false
+        type: boolean
+        default: false
     secrets:
       REPORTS_REPO_PAT:
         required: false

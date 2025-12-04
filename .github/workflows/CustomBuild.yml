@@ -62,11 +62,3 @@ jobs:
     needs: run_build_script
     if: ${{ inputs.deployment_type == 'Container' || inputs.deployment_type == 'container' }}
     uses: SathyaNarayana-indsys/studious-octo-meme/.github/workflows/Container-Deployment.yml@main
-    with:
-      runScript: ${{ inputs.runScript }}
-      deploymentFolder: ${{ inputs.deploymentFolder }}
-      executionRequired: ${{ inputs.executionRequired }}
-    secrets:
-      USER: ${{ secrets.USER }}
-      HOST: ${{ secrets.HOST }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
