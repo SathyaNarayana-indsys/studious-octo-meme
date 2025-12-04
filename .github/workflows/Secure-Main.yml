@@ -97,7 +97,7 @@ jobs:
                   echo "EOF" >> $GITHUB_OUTPUT
                 else
                   # If the file does not exist (e.g., if Bearer failed to run entirely), 
-                  # output an empty JSON object to prevent downstream errors.
+                  # output an empty JSON object to prevent downstream errors
                   echo "outputJson={}" >> $GITHUB_OUTPUT
                 fi
 
@@ -237,15 +237,18 @@ jobs:
               echo "Commit Message: $COMMIT_MESSAGE"
             fi
 
-    build:
-      name: Running Build
+    pre_build:
+      name: Running Build (pre-check)
       runs-on: ubuntu-latest
       needs: [sast, sbom_generator, secret_detection, sca]
       if: always()
       env:
         BREAK_ON_FAILURE_FLAG: ${{ inputs.break_on_failure }}
+      outputs:
+        proceed: ${{ steps.check.outputs.proceed }}
       steps:
         - name: Security Output Check Step
+          id: check
           run: |
             if [[ "$BREAK_ON_FAILURE_FLAG" == "true" ]]; then
               echo "BREAK_ON_FAILURE_FLAG is true, continuing only if all reports are successful."
@@ -254,35 +257,40 @@ jobs:
                 [[ "${{ needs.secret_detection.result }}" != "success" ]] || \
                 [[ "${{ needs.sca.result }}" != "success" ]]; then
                 echo "One or more checks failed. Skipping build."
+                echo "proceed=false" >> $GITHUB_OUTPUT
                 exit 1
               fi
             else
               echo "BREAK_ON_FAILURE_FLAG is false, running build regardless of reports."
             fi
-        - name: Custom Build Step
-          if: ${{ inputs.DryRun != true && inputs.BuildScript != '' }}
-          uses: ./CustomBuild.yml
-          with:
-            deployment_type:   ${{ inputs.deployment_type }}
-            runScript:  ${{ inputs.runScript }}
-            deploymentFolder: ${{ inputs.deploymentFolder }}
-            BuildScript: ${{ inputs.BuildScript }}
-          secrets:
-            USER: ${{ secrets.SSH_USER }}
-            HOST: ${{ secrets.SSH_HOST }}
-            SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+            echo "proceed=true" >> $GITHUB_OUTPUT
 
-        - name: Direct Deploy Step
-          if: ${{ inputs.DryRun != true && inputs.BuildScript == '' }}
-          uses:  ./DirectDeployBuild.yml
-          with:
-            deployment_type:   ${{ inputs.deployment_type }}
-            runScript:  ${{ inputs.runScript }}
-            deploymentFolder: ${{ inputs.deploymentFolder }}
-            BuildScript: ${{ inputs.BuildScript }}
-          secrets:
-            USER: ${{ secrets.SSH_USER }}
-            HOST: ${{ secrets.SSH_HOST }}
-            SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    custom_build:
+      name: Custom Build Job (invokes CustomBuild.yml)
+      needs: pre_build
+      if: ${{ inputs.DryRun != true && inputs.BuildScript != '' && needs.pre_build.result == 'success' }}
+      uses: ./.github/workflows/CustomBuild.yml
+      with:
+        deployment_type:   ${{ inputs.deployment_type }}
+        runScript:  ${{ inputs.runScript }}
+        deploymentFolder: ${{ inputs.deploymentFolder }}
+        BuildScript: ${{ inputs.BuildScript }}
+      secrets:
+        USER: ${{ secrets.USER }}
+        HOST: ${{ secrets.HOST }}
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
-
+    direct_deploy:
+      name: Direct Deploy Job (invokes DirectDeployBuild.yml)
+      needs: pre_build
+      if: ${{ inputs.DryRun != true && inputs.BuildScript == '' && needs.pre_build.result == 'success' }}
+      uses: ./.github/workflows/DirectDeployBuild.yml
+      with:
+        deployment_type:   ${{ inputs.deployment_type }}
+        runScript:  ${{ inputs.runScript }}
+        deploymentFolder: ${{ inputs.deploymentFolder }}
+        BuildScript: ${{ inputs.BuildScript }}
+      secrets:
+        USER: ${{ secrets.USER }}
+        HOST: ${{ secrets.HOST }}
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
