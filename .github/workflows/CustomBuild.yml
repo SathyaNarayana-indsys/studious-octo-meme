@@ -30,35 +30,43 @@ on:
         required: false
 
 jobs:
-  deploy:
-        name: Deployment
-        runs-on: ubuntu-latest
-        steps:
-          - name: Custom Build Step
-            runs: |
-              chmod +x ${{ inputs.BuildScript }}
-              ./${{ inputs.BuildScript }}
+  run_build_script:
+    name: Run Custom Build Script
+    runs-on: ubuntu-latest
+    if: ${{ inputs.BuildScript != '' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-          - name: VM Deployment Process 
-            uses: DeploymentType/VM-Deployment.yml
-            if: (${{ inputs.deployment_type }} == VM || ${{ inputs.deployment_type }} == vm)
-            with:
-              runScript: ${{ inputs.runScript }}
-              deploymentFolder: ${{ inputs.deploymentFolder }}
-              executionRequired: ${{ inputs.executionRequired }}
-            secrets:
-              USER: ${{secrets.USER}}
-              HOST: ${{secrets.HOST}}
-              SSH_PRIVATE_KEY: ${{secrets.SSH_PRIVATE_KEY}}
+      - name: Run Custom Build Step
+        run: |
+          chmod +x "${{ inputs.BuildScript }}"
+          ./"${{ inputs.BuildScript }}"
 
-          - name: Container Deployment Process 
-            uses: DeploymentType/Container-Deployment.yml
-            if: (${{ inputs.deployment_type }} == Container || ${{ inputs.deployment_type }} == container)
-            with:
-              runScript: ${{ inputs.runScript }}
-              deploymentFolder: ${{ inputs.deploymentFolder }}
-              executionRequired: ${{ inputs.executionRequired }}
-            secrets:
-              USER: ${{secrets.USER}}
-              HOST: ${{secrets.HOST}}
-              SSH_PRIVATE_KEY: ${{secrets.SSH_PRIVATE_KEY}}
+  vm_deploy:
+    name: VM Deployment Process
+    needs: run_build_script
+    if: ${{ inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' }}
+    uses: ./.github/workflows/DeploymentType/VM-Deployment.yml
+    with:
+      runScript: ${{ inputs.runScript }}
+      deploymentFolder: ${{ inputs.deploymentFolder }}
+      executionRequired: ${{ inputs.executionRequired }}
+    secrets:
+      USER: ${{ secrets.USER }}
+      HOST: ${{ secrets.HOST }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+  container_deploy:
+    name: Container Deployment Process
+    needs: run_build_script
+    if: ${{ inputs.deployment_type == 'Container' || inputs.deployment_type == 'container' }}
+    uses: ./.github/workflows/DeploymentType/Container-Deployment.yml
+    with:
+      runScript: ${{ inputs.runScript }}
+      deploymentFolder: ${{ inputs.deploymentFolder }}
+      executionRequired: ${{ inputs.executionRequired }}
+    secrets:
+      USER: ${{ secrets.USER }}
+      HOST: ${{ secrets.HOST }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
