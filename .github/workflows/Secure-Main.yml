@@ -160,82 +160,80 @@ jobs:
               # errors in the downstream 'PublishOutput' job
               echo "outputJson={}" >> $GITHUB_OUTPUT
             fi
-    PublishOutput:
-        name: Publishing output of all Steps after basic Review
-        runs-on: ubuntu-latest
-        needs: [sast, sbom_generator, secret_detection, sca]
-        if: always()
-        steps:
-        - name: Setup Git User
-          run: |
-            git config --global user.name "github-actions[bot]"
-            git config --global user.email "github-actions[bot]@users.noreply.github.com"
-                      
-        - name: Checkout the reports repo
-          uses: actions/checkout@v4
-          with:
-            repository: ${{ inputs.repo_link }}
-            path: /reports-repo
-            token: ${{ secrets.REPORTS_REPO_PAT }}
+PublishOutput:
+    name: Publishing output of all Steps after basic Review
+    runs-on: ubuntu-latest
+    needs: [sast, sbom_generator, secret_detection, sca]
+    if: always()
+    steps:
+    - name: Setup Git User
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+                  
+    - name: Checkout the reports repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.repo_link }}
+        path: reports-repo
+        token: ${{ secrets.REPORTS_REPO_PAT }}
 
-        - name: Check if Current Repo exist, Delete, and Recreate
-          id: checkFolder
-          env: 
-            REPO_NAME: ${{ github.event.repository.name }}
-          run: |
-            REPO_FOLDER="/reports-repo/$REPO_NAME"
-            cd /reports-repo
-            
-            if [ -d "$REPO_FOLDER" ]; then
-              echo "Folder exists. Deleting and staging deletion for: $REPO_FOLDER"
-              rm -rf "$REPO_FOLDER"
-              git rm -r --ignore-unmatch "$REPO_FOLDER" # --ignore-unmatch handles case where directory is empty
-            else
-              echo "Folder does not exist, proceeding."
-            fi
-            
-            # Recreate the folder to hold the new reports
-            echo "Creating folder: $REPO_FOLDER"
-            mkdir -p "$REPO_FOLDER"
-            cd .. # Change back to the main workspace directory
+    - name: Check if Current Repo exist, Delete, and Recreate
+      id: checkFolder
+      env: 
+        REPO_NAME: ${{ github.event.repository.name }}
+      run: |
+        REPO_FOLDER="reports-repo/$REPO_NAME"
+        
+        if [ -d "$REPO_FOLDER" ]; then
+          echo "Folder exists. Deleting and staging deletion for: $REPO_FOLDER"
+          rm -rf "$REPO_FOLDER"
+          git rm -r --ignore-unmatch "$REPO_FOLDER"
+        else
+          echo "Folder does not exist, proceeding."
+        fi
+        
+        # Recreate the folder to hold the new reports
+        echo "Creating folder: $REPO_NAME"
+        mkdir -p "$REPO_NAME"
 
-        - name: Copy, Commit, and Push Changes
-          id: copy_reports
-          env:
-            SAST_REPORT: ${{ needs.sast.outputs.output_json }}
-            SBOM_REPORT: ${{ needs.sbom_generator.outputs.output_json }}
-            SECRET_REPORT: ${{ needs.secret_detection.outputs.output_json }}
-            SCA_REPORT: ${{ needs.sca.outputs.output_json }}
-            FOLDER: /reports-repo/${{ github.event.repository.name }}
-          run: |
-            # Write new report files
-            echo "Writing new reports to $FOLDER"
-            echo $SAST_REPORT > $FOLDER/sast-results.json
-            echo $SBOM_REPORT > $FOLDER/sbom-results.json
-            echo $SECRET_REPORT > $FOLDER/secrets-results.json
-            echo $SCA_REPORT > $FOLDER/sca-results.json
-            
-            cd /reports-repo
-            git add . # Stages the new files and the prior folder deletion
-            
-            # Determine which files were changed/added/deleted (A, M, or D status)
-            CHANGES=$(git status --porcelain | grep '^[AMRD]' | awk '{print $2}')
-            if [ -z "$CHANGES" ]; then
-              echo "No changes detected. Nothing to commit."
-            else
-              CHANGED_FILES=$(echo "$CHANGES" | xargs -n1 basename | tr '\n' ', ')
-              CHANGED_FILES="${CHANGED_FILES%, }"
-              
-              BRANCH_NAME=$(echo ${{ github.ref_name }} | sed 's/refs\/heads\///')
-              
-              # Create the custom commit message and include [skip ci]
-              COMMIT_MESSAGE="Report Update: ${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES [skip ci]"
-              
-              git commit -m "$COMMIT_MESSAGE"
-              git push origin main
-              echo "Successfully pushed report changes to the reports repository."
-              echo "Commit Message: $COMMIT_MESSAGE"
-            fi
+    - name: Copy, Commit, and Push Changes
+      id: copy_reports
+      env:
+        SAST_REPORT: ${{ needs.sast.outputs.output_json }}
+        SBOM_REPORT: ${{ needs.sbom_generator.outputs.output_json }}
+        SECRET_REPORT: ${{ needs.secret_detection.outputs.output_json }}
+        SCA_REPORT: ${{ needs.sca.outputs.output_json }}
+        REPO_NAME: ${{ github.event.repository.name }}
+      run: |
+        # Write new report files
+        echo "Writing new reports to REPO_FOLDER"
+        echo "$SAST_REPORT" > "REPO_FOLDER/sast-results.json"
+        echo "$SBOM_REPORT" > "REPO_FOLDER/sbom-results.json"
+        echo "$SECRET_REPORT" > "REPO_FOLDER/secrets-results.json"
+        echo "$SCA_REPORT" > "REPO_FOLDER/sca-results.json"
+        
+        cd REPO_FOLDER/..
+        git add .
+        
+        # Determine which files were changed/added/deleted
+        CHANGES=$(git status --porcelain | grep '^[AMRD]' | awk '{print $2}')
+        if [ -z "$CHANGES" ]; then
+          echo "No changes detected. Nothing to commit."
+        else
+          CHANGED_FILES=$(echo "$CHANGES" | xargs -n1 basename | tr '\n' ', ')
+          CHANGED_FILES="${CHANGED_FILES%, }"
+          
+          BRANCH_NAME=$(echo ${{ github.ref_name }} | sed 's/refs\/heads\///')
+          
+          # Create the custom commit message and include [skip ci]
+          COMMIT_MESSAGE="Report Update: ${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES [skip ci]"
+          
+          git commit -m "$COMMIT_MESSAGE"
+          git push origin main
+          echo "Successfully pushed report changes to the reports repository."
+          echo "Commit Message: $COMMIT_MESSAGE"
+        fi
 
     pre_build:
       name: Running Build (pre-check)
