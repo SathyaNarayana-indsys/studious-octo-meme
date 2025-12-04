@@ -269,7 +269,7 @@ jobs:
       name: Custom Build Job (invokes CustomBuild.yml)
       needs: pre_build
       if: ${{ inputs.DryRun != true && inputs.BuildScript != '' && needs.pre_build.result == 'success' }}
-      uses: ./.github/workflows/CustomBuild.yml
+      uses: SathyaNarayana-indsys/studious-octo-meme/.github/workflows/CustomBuild.yml@main
       with:
         deployment_type:   ${{ inputs.deployment_type }}
         runScript:  ${{ inputs.runScript }}
@@ -284,7 +284,7 @@ jobs:
       name: Direct Deploy Job (invokes DirectDeployBuild.yml)
       needs: pre_build
       if: ${{ inputs.DryRun != true && inputs.BuildScript == '' && needs.pre_build.result == 'success' }}
-      uses: ./.github/workflows/DirectDeployBuild.yml
+      uses: SathyaNarayana-indsys/studious-octo-meme/.github/workflows/DirectDeployBuild.yml@main
       with:
         deployment_type:   ${{ inputs.deployment_type }}
         runScript:  ${{ inputs.runScript }}
