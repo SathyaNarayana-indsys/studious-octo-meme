@@ -191,7 +191,7 @@ jobs:
             
             # Recreate the folder to hold the new reports
             echo "Creating folder: $REPO_NAME"
-            mkdir -p "$REPO_NAME"
+            mkdir -p "$REPO_FOLDER"
 
         - name: Copy, Commit, and Push Changes
           id: copy_reports
