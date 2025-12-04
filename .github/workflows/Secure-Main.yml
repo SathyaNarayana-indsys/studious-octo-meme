@@ -87,17 +87,18 @@ jobs:
                 format: spdx-json
                 output-file: sbom.json
             - name: output
-              id: sast
+              id: sbom
               if: always()
               run: | 
-                # Use a conditional command to check if the file exists before attempting to read it
-                if [ -f "SAST-results.json" ]; then
+                # Check if the output file was successfully created
+                if [ -f "sbom.json" ]; then
+                  # Use the robust multiline method to safely pass the JSON content
                   echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-                  cat SAST-results.json | jq -c . >> $GITHUB_OUTPUT
+                  cat sbom.json | jq -c . >> $GITHUB_OUTPUT
                   echo "EOF" >> $GITHUB_OUTPUT
                 else
-                  # If the file does not exist (e.g., if Bearer failed to run entirely), 
-                  # output an empty JSON object to prevent downstream errors
+                  # If the file does not exist, output an empty JSON object to prevent 
+                  # errors in the downstream 'PublishOutput' job
                   echo "outputJson={}" >> $GITHUB_OUTPUT
                 fi
 
@@ -146,14 +147,18 @@ jobs:
                 output-file: sca-results.json
                 output-format: json
         - name: output
-          id: sbom  # Changed from 'sast'
+          id: sca
           if: always()
           run: | 
-            if [ -f "sbom.json" ]; then  # Changed from 'SAST-results.json'
+            # Check if the output file was successfully created
+            if [ -f "sca-results.json" ]; then
+              # Use the robust multiline method to safely pass the JSON content
               echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-              cat sbom.json | jq -c . >> $GITHUB_OUTPUT
+              cat sca-results.json | jq -c . >> $GITHUB_OUTPUT
               echo "EOF" >> $GITHUB_OUTPUT
             else
+              # If the file does not exist, output an empty JSON object to prevent 
+              # errors in the downstream 'PublishOutput' job
               echo "outputJson={}" >> $GITHUB_OUTPUT
             fi
     PublishOutput:
