@@ -15,7 +15,7 @@ on:
       repo_link:
         required: false
         type: string
-        default: ${{ vars.repo_link }}  #not full url
+        default: ${{ vars.REPO_LINK }}  #not full url
       deployment_type: # VM or Container
         required: false
         type: string
