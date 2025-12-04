@@ -39,7 +39,7 @@ jobs:
   vm_deploy:
     name: VM Deployment Process
     if: ${{ inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' }}
-    uses: ./.github/workflows/DeploymentType/VM-Deployment.yml
+    uses: ./VM-Deployment.yml
     with:
       runScript: ${{ inputs.runScript }}
       deploymentFolder: ${{ inputs.deploymentFolder }}
@@ -52,7 +52,7 @@ jobs:
   container_deploy:
     name: Container Deployment Process
     if: ${{ inputs.deployment_type == 'Container' || inputs.deployment_type == 'container' }}
-    uses: ./.github/workflows/DeploymentType/Container-Deployment.yml
+    uses: ./Container-Deployment.yml
     with:
       runScript: ${{ inputs.runScript }}
       deploymentFolder: ${{ inputs.deploymentFolder }}
