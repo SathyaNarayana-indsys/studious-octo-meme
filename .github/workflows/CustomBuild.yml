@@ -46,7 +46,7 @@ jobs:
   vm_deploy:
     name: VM Deployment Process
     needs: run_build_script
-    if: ${{ inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' }}
+    if: ${{ inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'BareMetal' }}
     uses: SathyaNarayana-indsys/studious-octo-meme/.github/workflows/VM-Deployment.yml@main
     with:
       runScript: ${{ inputs.runScript }}
