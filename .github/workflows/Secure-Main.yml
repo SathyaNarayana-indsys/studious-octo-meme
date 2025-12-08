@@ -223,7 +223,7 @@ jobs:
                 
                 BRANCH_NAME="${{ github.ref_name }}"
                 
-                COMMIT_MESSAGE="${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES [skip ci]"
+                COMMIT_MESSAGE="${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES"
                 
                 git commit -m "$COMMIT_MESSAGE"
                 
