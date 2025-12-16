@@ -327,7 +327,7 @@ jobs:
     name: VM Deployment Process
     # Condition to run for VM, Server, or BareMetal deployment types
     if: ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'BareMetal') }}
-    uses: .github/workflows//VM-Deployment.yml@main
+    uses: .github/workflows/VM-Deployment.yml@main
     with:
       runScript: ${{ inputs.runScript }}
       deploymentFolder: ${{ inputs.deploymentFolder }}
