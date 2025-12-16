@@ -289,20 +289,18 @@ jobs:
           if [[ "$BREAK_ON_FAILURE_FLAG" == "true" ]]; then
             echo "BREAK_ON_FAILURE_FLAG is true: checking all security job results."
             # Check if ANY of the security jobs FAILED (result != success)
-            if [[ "${{ needs.sast.result }}" != "success" ]] || \
-              [[ "${{ needs.sbom_generator.result }}" != "success" ]] || \
-              [[ "${{ needs.secret_detection.result }}" != "success" ]] || \
-              [[ "${{ needs.sca.result }}" != "success" ]]; then
-              
+            if [[ "${{ needs.sast.result }}" != "success" ]] ||  [[ "${{ needs.sbom_generator.result }}" != "success" ]] || [[ "${{ needs.secret_detection.result }}" != "success" ]] || [[ "${{ needs.sca.result }}" != "success" ]]; then
               echo "One or more security checks failed. Halting deployment."
               echo "proceed=false" >> $GITHUB_OUTPUT
               # Exit with non-zero code to fail this job
               exit 1 
             else
               echo "All security checks passed. Proceeding with build/deployment."
+              echo "proceed=true" >> $GITHUB_OUTPUT
             fi
           else
             echo "BREAK_ON_FAILURE_FLAG is false: proceeding regardless of security job results."
+            echo "proceed=true" >> $GITHUB_OUTPUT
           fi
 
   build:
