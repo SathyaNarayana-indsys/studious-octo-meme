@@ -252,6 +252,15 @@ jobs:
       outputs:
         proceed: ${{ steps.check.outputs.proceed }}
       steps:
+        - name: Debug inputs and previous job results
+          run: |
+            echo "DEBUG: inputs.BuildScript='${{ inputs.BuildScript }}'"
+            echo "DEBUG: inputs.DryRun='${{ inputs.DryRun }}'"
+            echo "DEBUG: inputs.deployment_type='${{ inputs.deployment_type }}'"
+            echo "DEBUG: needs.sast.result='${{ needs.sast.result }}'"
+            echo "DEBUG: needs.sbom_generator.result='${{ needs.sbom_generator.result }}'"
+            echo "DEBUG: needs.secret_detection.result='${{ needs.secret_detection.result }}'"
+            echo "DEBUG: needs.sca.result='${{ needs.sca.result }}'"
         - name: Security Output Check Step
           id: check
           run: |
@@ -269,7 +278,10 @@ jobs:
               echo "BREAK_ON_FAILURE_FLAG is false, running build regardless of reports."
             fi
             echo "proceed=true" >> $GITHUB_OUTPUT
-
+        - name: Debug proceed output
+          if: always()
+          run: |
+            echo "DEBUG: pre_build step 'check' output proceed='${{ steps.check.outputs.proceed }}'"
     custom_build:
       name: Custom Build Job (invokes CustomBuild.yml)
       needs: pre_build
