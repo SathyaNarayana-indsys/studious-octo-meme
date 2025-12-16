@@ -45,4 +45,4 @@ jobs:
   container_deploy:
     name: Container Deployment Process
     if: ${{ inputs.deployment_type == 'Container' || inputs.deployment_type == 'container' }}
-    uses:  SathyaNarayana-indsys/studious-octo-meme/.github/workflows/Container-Deployment.yml
+    uses:  SathyaNarayana-indsys/studious-octo-meme/.github/workflows/Container-Deployment.yml@main

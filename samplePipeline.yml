@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     
     # This step calls your reusable workflow
-    uses: SathyaNarayana-indsys/studious-octo-meme/.github/workflows/Security Pipeline.yml
+    uses: SathyaNarayana-indsys/studious-octo-meme/.github/workflows/Security Pipeline.yml@main
     
     with:
       # Pass the inputs from the calling workflow or set default values
