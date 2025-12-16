@@ -305,24 +305,45 @@ jobs:
             echo "BREAK_ON_FAILURE_FLAG is false: proceeding regardless of security job results."
           fi
 
-  custom_build:
-    name: Run Custom Build Script
+  build:
+    name: Run Custom Build Script (if it exists)
     runs-on: ubuntu-latest
     needs: pre_build
-    if: ${{ !inputs.DryRun && inputs.BuildScript && needs.pre_build.outputs.proceed == 'true' }}
+    if: ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' }}
     steps:
-      - name:  Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
+        
       - name: Run Custom Build Step
+        id: build_check
         run: |
-          # Ensure the script is executable and then run it
-          chmod +x "${{ inputs.BuildScript }}"
-          ./"${{ inputs.BuildScript }}"
-
+          BUILD_SCRIPT="${{ inputs.BuildScript }}"
+          
+          # Check if the BuildScript input is empty or "NA" (the default value)
+          if [[ -z "$BUILD_SCRIPT" ]] || [[ "$BUILD_SCRIPT" == "NA" ]]; then
+            echo "::notice file=custom_build::No BuildScript provided in inputs. Skipping build steps."
+            echo "No custom build script was provided."
+            # Exit with success (0) as requested, which is the shell's default for a successful run.
+            exit 0
+          fi
+          
+          # If the script is provided, proceed with execution
+          echo "Executing custom build script: $BUILD_SCRIPT"
+          
+          # Ensure the script file exists
+          if [ ! -f "$BUILD_SCRIPT" ]; then
+            echo "::error file=custom_build::BuildScript file '$BUILD_SCRIPT' not found in the repository."
+            exit 1 # Exit with failure if script file is missing
+          fi
+          
+          # Make the script executable and run it
+          chmod +x "$BUILD_SCRIPT"
+          ./"$BUILD_SCRIPT"
+          
   vm_deploy:
     name: VM Deployment Process
     needs: [pre_build, custom_build]
-    if: ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'BareMetal') && (needs.custom_build.result == 'success' || needs.custom_build.result == 'skipped') }}
+    if: always() && ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'BareMetal') && (needs.custom_build.result == 'success' || needs.custom_build.result == 'skipped') }}
     uses: ./.github/workflows/VM-Deployment.yml
     with:
       runScript: ${{ inputs.runScript }}
@@ -336,5 +357,5 @@ jobs:
   container_deploy:
     name: Container Deployment Process
     needs: [pre_build, custom_build]
-    if: ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container') && (needs.custom_build.result == 'success' || needs.custom_build.result == 'skipped') }}
+    if: always() && ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container') && (needs.custom_build.result == 'success' || needs.custom_build.result == 'skipped') }}
     uses: ./.github/workflows/Container-Deployment.yml
