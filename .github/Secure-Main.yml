@@ -1,300 +1,347 @@
 name: Security Pipeline
 run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
 
+# This workflow is designed to be called by another workflow.
 on:
   workflow_call:
     inputs:
       break_on_failure:
+        description: 'Set to true for normal flow (fails on security issues) or false for emergency deployment (always proceeds).'
         required: false
         type: boolean
-        default: true # Set to true for normal flow else Set to false for extreme worst case emergency deployment
-      serviceVersion: # not required but good to have
+        default: true
+      serviceVersion:
+        description: 'Optional service version tag.'
         required: false
         type: string
         default: "NA"
       repo_link:
+        description: 'The target repository link for reports (e.g., owner/repo).'
         required: false
         type: string
-        default: ${{ vars.REPO_LINK }}  #not full url
-      deployment_type: # VM or Container
+        default: ${{ vars.REPO_LINK }}
+      deployment_type:
+        description: 'Deployment target type (e.g., VM or Container).'
         required: false
         type: string
         default: VM
-      runScript: # In case of a VM deployment, if any script have to be executed.
+      runScript:
+        description: 'In case of a VM deployment, the script to be executed on the VM.'
         required: false
         type: string
       deploymentFolder:
+        description: 'The target deployment folder for VM deployments.'
         required: false
         type: string
       BuildScript:
+        description: 'The custom build script to run before deployment.'
         required: false
         type: string
       DryRun:
+        description: 'If true, skips deployment steps.'
+        required: false
+        type: boolean
+        default: false
+      executionRequired:
         required: false
         type: boolean
         default: false
     secrets:
       REPORTS_REPO_PAT:
+        description: 'PAT for cloning and pushing to the reports repository.'
         required: false
       USER:
+        description: 'SSH user for VM deployment.'
         required: false
       HOST:
+        description: 'SSH host for VM deployment.'
         required: false
       SSH_PRIVATE_KEY:
+        description: 'SSH private key for VM deployment.'
         required: false
+
 jobs:
-    sast:
-        name: Running SAST [BearerCLI] on project
-        runs-on: ubuntu-latest 
-        outputs:
-          output_json: ${{ steps.sast.outputs.outputJson}}
-        steps: 
-          - name: Checkout code
-            uses: actions/checkout@v4
-          - name: Run Bearer SAST
-            uses: bearer/bearer-action@v2
-            with:
-              scanner: sast
-              quiet: true
-              format: json
-              output: SAST-results.json
-          - name: output
-            id: sast
-            if: always()
-            run: | 
-              # Use a conditional command to check if the file exists before attempting to read it
-              if [ -f "SAST-results.json" ]; then
-                echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-                cat SAST-results.json | jq -c . >> $GITHUB_OUTPUT
-                echo "EOF" >> $GITHUB_OUTPUT
-              else
-                # If the file does not exist (e.g., if Bearer failed to run entirely), 
-                # output an empty JSON object to prevent downstream errors.
-                echo "outputJson={}" >> $GITHUB_OUTPUT
-              fi
+  sast:
+    name: Running SAST [BearerCLI]
+    runs-on: ubuntu-latest
+    # Output the SAST JSON result for downstream jobs
+    outputs:
+      output_json: ${{ steps.sast-output.outputs.outputJson }}
+    steps:
+      - name:  Checkout code
+        uses: actions/checkout@v4
 
-    sbom_generator:
-        name: Running Syft [SBOM generator] on project
-        runs-on: ubuntu-latest
-        outputs:
-          output_json: ${{ steps.sbom.outputs.outputJson}}
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-            - uses: anchore/sbom-action@v0
-              id: syft
-              with:
-                format: spdx-json
-                output-file: sbom.json
-            - name: output
-              id: sbom
-              if: always()
-              run: | 
-                # Check if the output file was successfully created
-                if [ -f "sbom.json" ]; then
-                  # Use the robust multiline method to safely pass the JSON content
-                  echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-                  cat sbom.json | jq -c . >> $GITHUB_OUTPUT
-                  echo "EOF" >> $GITHUB_OUTPUT
-                else
-                  # If the file does not exist, output an empty JSON object to prevent 
-                  # errors in the downstream 'PublishOutput' job
-                  echo "outputJson={}" >> $GITHUB_OUTPUT
-                fi
+      - name: Run Bearer SAST
+        uses: bearer/bearer-action@v2
+        with:
+          scanner: sast
+          quiet: true
+          format: json
+          output: SAST-results.json
+          
+      - name: Output SAST results
+        id: sast-output # Renamed ID for clarity
+        if: always()
+        run: |
+          # Use a conditional command to check if the file exists before attempting to read it
+          if [ -f "SAST-results.json" ]; then
+            echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+            # Use jq to compact the JSON before outputting
+            cat SAST-results.json | jq -c . >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            # Output an empty JSON object to prevent downstream errors.
+            echo "outputJson={}" >> $GITHUB_OUTPUT
+          fi
 
-    secret_detection:
-        name: Running Truffle-Hog on project
-        runs-on: ubuntu-latest
-        outputs:
-            output_json: ${{ steps.secrets.outputJson }}
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-            - name: install and run truffleHog
-              id: truffleHog
-              run: |
-                curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
-                trufflehog filesystem ./ --json --log-level=-1 -x ./.git>> secrets-result.json  
-            - name: output
-              id: secrets
-              if: always()
-              run: |
-                # Check if the output file was successfully created
-                if [ -f "secrets-result.json" ]; then
-                  echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-                  # Read the file and compact it with jq -c .
-                  cat secrets-result.json | jq -c . >> $GITHUB_OUTPUT
-                  echo "EOF" >> $GITHUB_OUTPUT
-                else
-                  # If the file does not exist, output an empty JSON object to prevent downstream errors
-                  echo "outputJson={}" >> $GITHUB_OUTPUT
-                fi
-    sca:
-        name: Running Grype [SCA] on project
-        runs-on: ubuntu-latest
-        outputs:
-            output_json: ${{ steps.sca.outputJson }}
-        steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-        - name: Run Anchore Scan
-          uses: anchore/scan-action@v6
-          id: grype
-          with:
-                path: "."
-                only-fixed: true
-                severity-cutoff: high
-                output-file: sca-results.json
-                output-format: json
-        - name: output
-          id: sca
-          if: always()
-          run: | 
-            # Check if the output file was successfully created
-            if [ -f "sca-results.json" ]; then
-              # Use the robust multiline method to safely pass the JSON content
-              echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-              cat sca-results.json | jq -c . >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
+  sbom_generator:
+    name: Running Syft [SBOM generator]
+    runs-on: ubuntu-latest
+    outputs:
+      output_json: ${{ steps.sbom-output.outputs.outputJson }}
+    steps:
+      - name:  Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        id: syft-scan # Renamed ID for clarity
+        with:
+          format: spdx-json
+          output-file: sbom.json
+          
+      - name: Output SBOM results
+        id: sbom-output # Renamed ID for clarity
+        if: always()
+        run: |
+          if [ -f "sbom.json" ]; then
+            echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+            cat sbom.json | jq -c . >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "outputJson={}" >> $GITHUB_OUTPUT
+          fi
+
+  secret_detection:
+    name: Running Truffle-Hog
+    runs-on: ubuntu-latest
+    # Corrected output reference: use step ID
+    outputs:
+      output_json: ${{ steps.secrets-output.outputs.outputJson }}
+    steps:
+      - name:  Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install and run TruffleHog
+        id: truffleHog-scan # Renamed ID for clarity
+        run: |
+          # Install TruffleHog
+          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+          # Run scan on the local filesystem, output JSON, suppress logs, exclude .git folder
+          trufflehog filesystem ./ --json --log-level=-1 -x ./.git >> secrets-result.json
+          
+      - name: Output Secret results
+        id: secrets-output # Renamed ID for clarity
+        if: always()
+        run: |
+          if [ -f "secrets-result.json" ]; then
+            echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+            cat secrets-result.json | jq -c . >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "outputJson={}" >> $GITHUB_OUTPUT
+          fi
+
+  sca:
+    name: Running Grype [SCA]
+    runs-on: ubuntu-latest
+    # Corrected output reference: use step ID
+    outputs:
+      output_json: ${{ steps.sca-output.outputs.outputJson }}
+    steps:
+      - name:  Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Run Grype (Anchore Scan)
+        uses: anchore/scan-action@v6
+        id: grype-scan # Renamed ID for clarity
+        with:
+          path: "."
+          only-fixed: true
+          severity-cutoff: high
+          output-file: sca-results.json
+          output-format: json
+          
+      - name: Output SCA results
+        id: sca-output # Renamed ID for clarity
+        if: always()
+        run: |
+          if [ -f "sca-results.json" ]; then
+            echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+            cat sca-results.json | jq -c . >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "outputJson={}" >> $GITHUB_OUTPUT
+          fi
+
+  PublishOutput:
+    name: Publish Security Reports
+    runs-on: ubuntu-latest
+    needs: [sast, sbom_generator, secret_detection, sca]
+    if: always()
+    steps:
+      - name: Setup Git User
+        run: |
+          git config --global user.name "automation-bot"
+          git config --global user.email "automation-bot@example.com"
+
+      - name: 🔗 Clone the reports repo (using PAT)
+        env:
+          REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
+        run: |
+          REPO_FULL="${{ inputs.repo_link }}"
+          TARGET_DIR="${RUNNER_TEMP}/reports-repo"
+          GIT_CLONE_URL="https://x-access-token:${REPORTS_REPO_PAT}@github.com/${REPO_FULL}.git"
+          
+          # Only clone if REPORTS_REPO_PAT is provided
+          if [ -z "${REPORTS_REPO_PAT}" ]; then
+            echo "REPORTS_REPO_PAT secret is not set. Skipping clone."
+            exit 0
+          fi
+
+          echo "Cloning reports repo into $TARGET_DIR"
+          git clone "${GIT_CLONE_URL}" "${TARGET_DIR}"
+
+      - name: Prepare Reports Folder
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+          REPORTS_ROOT: ${{ runner.temp }}/reports-repo
+        # Check if the reports-repo directory exists before trying to create subfolders
+        if: success() && steps.clone.outcome == 'success'
+        run: |
+          REPO_FOLDER="$REPORTS_ROOT/$REPO_NAME"
+          echo "Creating reports folder: $REPO_FOLDER"
+          mkdir -p "$REPO_FOLDER"
+
+      - name: Write Reports
+        env:
+          SAST_REPORT: ${{ needs.sast.outputs.output_json }}
+          SBOM_REPORT: ${{ needs.sbom_generator.outputs.output_json }}
+          SECRET_REPORT: ${{ needs.secret_detection.outputs.output_json }}
+          SCA_REPORT: ${{ needs.sca.outputs.output_json }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          REPORTS_ROOT: ${{ runner.temp }}/reports-repo
+        # Check if the reports-repo directory exists before trying to write files
+        if: success() && steps.clone.outcome == 'success'
+        run: |
+          REPO_FOLDER="$REPORTS_ROOT/$REPO_NAME"
+          echo "Writing new reports to $REPO_FOLDER"
+          echo "$SAST_REPORT" > "$REPO_FOLDER/sast-results.json"
+          echo "$SBOM_REPORT" > "$REPO_FOLDER/sbom-results.json"
+          echo "$SECRET_REPORT" > "$REPO_FOLDER/secrets-results.json"
+          echo "$SCA_REPORT" > "$REPO_FOLDER/sca-results.json"
+
+      - name: Commit and Push to Reports Repo
+        env:
+          REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
+        working-directory: ${{ runner.temp }}/reports-repo
+        # Check if the reports-repo directory exists before trying to push
+        if: success() && steps.clone.outcome == 'success'
+        run: |
+          git add .
+          if git diff --staged --quiet; then
+            echo "No changes detected. Nothing to commit."
+            exit 0
+          fi
+
+          CHANGED_FILES=$(git diff --staged --name-only | xargs -n1 basename | tr '\n' ', ')
+          CHANGED_FILES="${CHANGED_FILES%, }"
+
+          BRANCH_NAME="${{ github.ref_name }}"
+          COMMIT_MESSAGE="${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES"
+
+          git config user.name "automation-bot"
+          git config user.email "automation-bot@example.com"
+
+          git commit -m "$COMMIT_MESSAGE" || { echo "commit failed or nothing to commit"; exit 0; }
+
+          REPO_FULL="${{ inputs.repo_link }}"
+          AUTH_PUSH_URL="https://x-access-token:${REPORTS_REPO_PAT}@github.com/${REPO_FULL}.git"
+          git remote set-url origin "${AUTH_PUSH_URL}"
+
+          git push origin "HEAD:${BRANCH_NAME}"
+
+          echo "Successfully pushed report changes to the reports repository."
+
+  pre_build:
+    name: Pre-Build Security Check
+    runs-on: ubuntu-latest
+    needs: [sast, sbom_generator, secret_detection, sca]
+    if: always()
+    env:
+      BREAK_ON_FAILURE_FLAG: ${{ inputs.break_on_failure }}
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - name: Security Output Check Step
+        id: check
+        run: |
+          # Default to proceed=true
+          echo "proceed=true" >> $GITHUB_OUTPUT
+
+          if [[ "$BREAK_ON_FAILURE_FLAG" == "true" ]]; then
+            echo "BREAK_ON_FAILURE_FLAG is true: checking all security job results."
+            # Check if ANY of the security jobs FAILED (result != success)
+            if [[ "${{ needs.sast.result }}" != "success" ]] || \
+              [[ "${{ needs.sbom_generator.result }}" != "success" ]] || \
+              [[ "${{ needs.secret_detection.result }}" != "success" ]] || \
+              [[ "${{ needs.sca.result }}" != "success" ]]; then
+              
+              echo "One or more security checks failed. Halting deployment."
+              echo "proceed=false" >> $GITHUB_OUTPUT
+              # Exit with non-zero code to fail this job
+              exit 1 
             else
-              # If the file does not exist, output an empty JSON object to prevent 
-              # errors in the downstream 'PublishOutput' job
-              echo "outputJson={}" >> $GITHUB_OUTPUT
+              echo "All security checks passed. Proceeding with build/deployment."
             fi
-    PublishOutput:
-      name: Publishing output of all Steps after basic Review
-      runs-on: ubuntu-latest
-      needs: [sast, sbom_generator, secret_detection, sca]
-      if: always()
-      steps:
-        - name: Setup Git User
-          run: |
-            git config --global user.name "automation-bot"
-            git config --global user.email "automation-bot@example.com"
+          else
+            echo "BREAK_ON_FAILURE_FLAG is false: proceeding regardless of security job results."
+          fi
 
-        - name: Clone the reports repo (using PAT)
-          env:
-            REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
-          run: |
-            # inputs.repo_link should be "owner/repo" (same format used previously)
-            REPO_FULL="${{ inputs.repo_link }}"
-            TARGET_DIR="${RUNNER_TEMP}/reports-repo"
+  custom_build:
+    name: Run Custom Build Script
+    runs-on: ubuntu-latest
+    needs: pre_build
+    # Proceed if not a DryRun AND a BuildScript input was provided
+    if: ${{ !inputs.DryRun && inputs.BuildScript && needs.pre_build.outputs.proceed == 'true' }}
+    steps:
+      - name:  Checkout code
+        uses: actions/checkout@v4
+      - name: Run Custom Build Step
+        run: |
+          # Ensure the script is executable and then run it
+          chmod +x "${{ inputs.BuildScript }}"
+          ./"${{ inputs.BuildScript }}"
 
-            # Use the PAT to authenticate. We use x-access-token so the token owner is the actor for the push.
-            GIT_CLONE_URL="https://x-access-token:${REPORTS_REPO_PAT}@github.com/${REPO_FULL}.git"
+  vm_deploy:
+    name: VM Deployment Process
+    # Condition to run for VM, Server, or BareMetal deployment types
+    if: ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'BareMetal') }}
+    uses: .github/workflows/VM-Deployment.yml
+    with:
+      runScript: ${{ inputs.runScript }}
+      deploymentFolder: ${{ inputs.deploymentFolder }}
+      executionRequired: ${{ inputs.executionRequired }}
+    secrets:
+      USER: ${{ secrets.USER }}
+      HOST: ${{ secrets.HOST }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
-            echo "Cloning reports repo into $TARGET_DIR"
-            git clone "${GIT_CLONE_URL}" "${TARGET_DIR}"
-
-        - name: Prepare Reports Folder
-          env:
-            REPO_NAME: ${{ github.event.repository.name }}
-            REPORTS_ROOT: ${{ runner.temp }}/reports-repo
-          run: |
-            REPO_FOLDER="$REPORTS_ROOT/$REPO_NAME"
-            echo "Creating reports folder: $REPO_FOLDER"
-            mkdir -p "$REPO_FOLDER"
-
-        - name: Write Reports
-          env:
-            SAST_REPORT: ${{ needs.sast.outputs.output_json }}
-            SBOM_REPORT: ${{ needs.sbom_generator.outputs.output_json }}
-            SECRET_REPORT: ${{ needs.secret_detection.outputs.output_json }}
-            SCA_REPORT: ${{ needs.sca.outputs.output_json }}
-            REPO_NAME: ${{ github.event.repository.name }}
-            REPORTS_ROOT: ${{ runner.temp }}/reports-repo
-          run: |
-            REPO_FOLDER="$REPORTS_ROOT/$REPO_NAME"
-            echo "Writing new reports to $REPO_FOLDER"
-            echo "$SAST_REPORT" > "$REPO_FOLDER/sast-results.json"
-            echo "$SBOM_REPORT" > "$REPO_FOLDER/sbom-results.json"
-            echo "$SECRET_REPORT" > "$REPO_FOLDER/secrets-results.json"
-            echo "$SCA_REPORT" > "$REPO_FOLDER/sca-results.json"
-
-        - name: Commit and Push to Reports Repo (using PAT)
-          env:
-            REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
-          working-directory: ${{ runner.temp }}/reports-repo
-          run: |
-            git add .
-            if git diff --staged --quiet; then
-              echo "No changes detected. Nothing to commit."
-              exit 0
-            fi
-
-            CHANGED_FILES=$(git diff --staged --name-only | xargs -n1 basename | tr '\n' ', ')
-            CHANGED_FILES="${CHANGED_FILES%, }"
-
-            BRANCH_NAME="${{ github.ref_name }}"  # branch name that triggered the workflow in the source repo
-            COMMIT_MESSAGE="${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES"
-
-            git config user.name "automation-bot"
-            git config user.email "automation-bot@example.com"
-
-            git commit -m "$COMMIT_MESSAGE" || { echo "commit failed or nothing to commit"; exit 0; }
-
-            REPO_FULL="${{ inputs.repo_link }}"
-            AUTH_PUSH_URL="https://x-access-token:${REPORTS_REPO_PAT}@github.com/${REPO_FULL}.git"
-            git remote set-url origin "${AUTH_PUSH_URL}"
-
-            git push origin "HEAD:${BRANCH_NAME}"
-
-            echo "Successfully pushed report changes to the reports repository."
-            echo "Commit Message: $COMMIT_MESSAGE"
-
-    pre_build:
-      name: Running Build (pre-check)
-      runs-on: ubuntu-latest
-      needs: [sast, sbom_generator, secret_detection, sca]
-      if: always()
-      env:
-        BREAK_ON_FAILURE_FLAG: ${{ inputs.break_on_failure }}
-      outputs:
-        proceed: ${{ steps.check.outputs.proceed }}
-      steps:
-        - name: Security Output Check Step
-          id: check
-          run: |
-            if [[ "$BREAK_ON_FAILURE_FLAG" == "true" ]]; then
-              echo "BREAK_ON_FAILURE_FLAG is true, continuing only if all reports are successful."
-              if [[ "${{ needs.sast.result }}" != "success" ]] || \
-                [[ "${{ needs.sbom_generator.result }}" != "success" ]] || \
-                [[ "${{ needs.secret_detection.result }}" != "success" ]] || \
-                [[ "${{ needs.sca.result }}" != "success" ]]; then
-                echo "One or more checks failed. Skipping build."
-                echo "proceed=false" >> $GITHUB_OUTPUT
-                exit 1
-              fi
-            else
-              echo "BREAK_ON_FAILURE_FLAG is false, running build regardless of reports."
-            fi
-            echo "proceed=true" >> $GITHUB_OUTPUT
-
-    custom_build:
-      name: Custom Build Job (invokes CustomBuild.yml)
-      needs: pre_build
-      if: ${{ inputs.DryRun != true && inputs.BuildScript != '' && needs.pre_build.result == 'success' }}
-      uses: ./.github/workflows/CustomBuild.yml
-      with:
-        deployment_type:   ${{ inputs.deployment_type }}
-        runScript:  ${{ inputs.runScript }}
-        deploymentFolder: ${{ inputs.deploymentFolder }}
-        BuildScript: ${{ inputs.BuildScript }}
-      secrets:
-        USER: ${{ secrets.USER }}
-        HOST: ${{ secrets.HOST }}
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-
-    direct_deploy:
-      name: Direct Deploy Job (invokes DirectDeployBuild.yml)
-      needs: pre_build
-      if: ${{ inputs.DryRun != true && inputs.BuildScript == '' && needs.pre_build.result == 'success' }}
-      uses: ./.github/workflows/DirectDeployBuild.yml
-      with:
-        deployment_type:   ${{ inputs.deployment_type }}
-        runScript:  ${{ inputs.runScript }}
-        deploymentFolder: ${{ inputs.deploymentFolder }}
-      secrets:
-        USER: ${{ secrets.USER }}
-        HOST: ${{ secrets.HOST }}
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+  container_deploy:
+    name: Container Deployment Process
+    # Condition to run for Container deployment types
+    if: ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container') }}
+    uses: .github/workflows/Container-Deployment.yml
+    # Add an empty 'with' block if the container workflow requires no inputs, or add necessary inputs
+    # with: 
+    #   someInput: ${{ inputs.someInput }}
