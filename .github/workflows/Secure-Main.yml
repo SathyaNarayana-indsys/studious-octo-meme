@@ -309,7 +309,7 @@ jobs:
     name: Run Custom Build Script (if it exists)
     runs-on: ubuntu-latest
     needs: pre_build
-    if: always() && ${{ !inputs.DryRun }}
+    if: ${{ needs.pre_build.outputs.proceed == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -342,8 +342,8 @@ jobs:
 
   vm_deploy:
     name: VM Deployment Process
-    needs: [pre_build, build]
-    if: always() && ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'BareMetal') && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    needs: [build]
+    if: ${{ !inputs.DryRun && (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'server' || ) }}
     uses: ./.github/workflows/VM-Deployment.yml
     with:
       runScript: ${{ inputs.runScript }}
@@ -356,6 +356,6 @@ jobs:
 
   container_deploy:
     name: Container Deployment Process
-    needs: [pre_build, build]
-    if: always() && ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container') && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    needs: [build]
+    if: ${{ !inputs.DryRun && (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container') }}
     uses: ./.github/workflows/Container-Deployment.yml
