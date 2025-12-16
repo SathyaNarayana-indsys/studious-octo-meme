@@ -64,9 +64,9 @@ jobs:
   sast:
     name: Running SAST [BearerCLI]
     runs-on: ubuntu-latest
-    # Output the SAST JSON result for downstream jobs
     outputs:
       output_json: ${{ steps.sast-output.outputs.outputJson }}
+      encryption_key: ${{ steps.sast-output.outputs.encryptionKey }}
     steps:
       - name:  Checkout code
         uses: actions/checkout@v4
@@ -79,19 +79,37 @@ jobs:
           format: json
           output: SAST-results.json
           
-      - name: Output SAST results
-        id: sast-output # Renamed ID for clarity
+      - name: Encrypt and Output SAST results
+        id: sast-output
         if: always()
         run: |
-          # Use a conditional command to check if the file exists before attempting to read it
           if [ -f "SAST-results.json" ]; then
+            # Generate a random encryption key (256-bit = 32 bytes in hex = 64 chars)
+            ENCRYPTION_KEY=$(openssl rand -hex 32)
+            
+            # Compact the JSON
+            cat SAST-results.json | jq -c . > sast-compact.json
+            
+            # Encrypt the results using AES-256-CBC
+            openssl enc -aes-256-cbc -salt -pbkdf2 -in sast-compact.json -out sast-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
+            
+            # Base64 encode the encrypted output for safe transport
+            ENCRYPTED_DATA=$(base64 -w 0 sast-encrypted.bin)
+            
+            # Output the encrypted data
             echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-            # Use jq to compact the JSON before outputting
-            cat SAST-results.json | jq -c . >> $GITHUB_OUTPUT
+            echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
+            
+            # Output the encryption key
+            echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
+            
+            # Clean up temporary files
+            rm -f sast-compact.json sast-encrypted.bin SAST-results.json
           else
             # Output an empty JSON object to prevent downstream errors.
             echo "outputJson={}" >> $GITHUB_OUTPUT
+            echo "encryptionKey=" >> $GITHUB_OUTPUT
           fi
 
   sbom_generator:
@@ -99,72 +117,113 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       output_json: ${{ steps.sbom-output.outputs.outputJson }}
+      encryption_key: ${{ steps.sbom-output.outputs.encryptionKey }}
     steps:
       - name:  Checkout code
         uses: actions/checkout@v4
         
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
-        id: syft-scan # Renamed ID for clarity
+        id: syft-scan
         with:
           format: spdx-json
           output-file: sbom.json
           
-      - name: Output SBOM results
-        id: sbom-output # Renamed ID for clarity
+      - name: Encrypt and Output SBOM results
+        id: sbom-output
         if: always()
         run: |
           if [ -f "sbom.json" ]; then
+            # Generate a random encryption key
+            ENCRYPTION_KEY=$(openssl rand -hex 32)
+            
+            # Compact the JSON
+            cat sbom.json | jq -c . > sbom-compact.json
+            
+            # Encrypt the results using AES-256-CBC
+            openssl enc -aes-256-cbc -salt -pbkdf2 -in sbom-compact.json -out sbom-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
+            
+            # Base64 encode the encrypted output
+            ENCRYPTED_DATA=$(base64 -w 0 sbom-encrypted.bin)
+            
+            # Output the encrypted data
             echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-            cat sbom.json | jq -c . >> $GITHUB_OUTPUT
+            echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
+            
+            # Output the encryption key
+            echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
+            
+            # Clean up temporary files
+            rm -f sbom-compact.json sbom-encrypted.bin sbom.json
           else
             echo "outputJson={}" >> $GITHUB_OUTPUT
+            echo "encryptionKey=" >> $GITHUB_OUTPUT
           fi
 
   secret_detection:
     name: Running Truffle-Hog
     runs-on: ubuntu-latest
-    # Corrected output reference: use step ID
     outputs:
       output_json: ${{ steps.secrets-output.outputs.outputJson }}
+      encryption_key: ${{ steps.secrets-output.outputs.encryptionKey }}
     steps:
       - name:  Checkout code
         uses: actions/checkout@v4
         
       - name: Install and run TruffleHog
-        id: truffleHog-scan # Renamed ID for clarity
+        id: truffleHog-scan
         run: |
           # Install TruffleHog
           curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
           # Run scan on the local filesystem, output JSON, suppress logs, exclude .git folder
           trufflehog filesystem ./ --json --log-level=-1 -x ./.git >> secrets-result.json
           
-      - name: Output Secret results
-        id: secrets-output # Renamed ID for clarity
+      - name: Encrypt and Output Secret results
+        id: secrets-output
         if: always()
         run: |
           if [ -f "secrets-result.json" ]; then
+            # Generate a random encryption key
+            ENCRYPTION_KEY=$(openssl rand -hex 32)
+            
+            # Compact the JSON
+            cat secrets-result.json | jq -c . > secrets-compact.json
+            
+            # Encrypt the results using AES-256-CBC
+            openssl enc -aes-256-cbc -salt -pbkdf2 -in secrets-compact.json -out secrets-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
+            
+            # Base64 encode the encrypted output
+            ENCRYPTED_DATA=$(base64 -w 0 secrets-encrypted.bin)
+            
+            # Output the encrypted data
             echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-            cat secrets-result.json | jq -c . >> $GITHUB_OUTPUT
+            echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
+            
+            # Output the encryption key
+            echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
+            
+            # Clean up temporary files
+            rm -f secrets-compact.json secrets-encrypted.bin secrets-result.json
           else
             echo "outputJson={}" >> $GITHUB_OUTPUT
+            echo "encryptionKey=" >> $GITHUB_OUTPUT
           fi
 
   sca:
     name: Running Grype [SCA]
     runs-on: ubuntu-latest
-    # Corrected output reference: use step ID
     outputs:
       output_json: ${{ steps.sca-output.outputs.outputJson }}
+      encryption_key: ${{ steps.sca-output.outputs.encryptionKey }}
     steps:
       - name:  Checkout code
         uses: actions/checkout@v4
         
       - name: Run Grype (Anchore Scan)
         uses: anchore/scan-action@v6
-        id: grype-scan # Renamed ID for clarity
+        id: grype-scan
         with:
           path: "."
           only-fixed: true
@@ -172,16 +231,36 @@ jobs:
           output-file: sca-results.json
           output-format: json
           
-      - name: Output SCA results
-        id: sca-output # Renamed ID for clarity
+      - name: Encrypt and Output SCA results
+        id: sca-output
         if: always()
         run: |
           if [ -f "sca-results.json" ]; then
+            # Generate a random encryption key
+            ENCRYPTION_KEY=$(openssl rand -hex 32)
+            
+            # Compact the JSON
+            cat sca-results.json | jq -c . > sca-compact.json
+            
+            # Encrypt the results using AES-256-CBC
+            openssl enc -aes-256-cbc -salt -pbkdf2 -in sca-compact.json -out sca-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
+            
+            # Base64 encode the encrypted output
+            ENCRYPTED_DATA=$(base64 -w 0 sca-encrypted.bin)
+            
+            # Output the encrypted data
             echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-            cat sca-results.json | jq -c . >> $GITHUB_OUTPUT
+            echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
+            
+            # Output the encryption key
+            echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
+            
+            # Clean up temporary files
+            rm -f sca-compact.json sca-encrypted.bin sca-results.json
           else
             echo "outputJson={}" >> $GITHUB_OUTPUT
+            echo "encryptionKey=" >> $GITHUB_OUTPUT
           fi
 
   PublishOutput:
@@ -196,6 +275,7 @@ jobs:
           git config --global user.email "automation-bot@example.com"
 
       - name: 🔗 Clone the reports repo (using PAT)
+        id: clone
         env:
           REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
         run: |
@@ -222,22 +302,49 @@ jobs:
           echo "Creating reports folder: $REPO_FOLDER"
           mkdir -p "$REPO_FOLDER"
 
-      - name: Write Reports
+      - name: Decrypt and Write Reports
         env:
           SAST_REPORT: ${{ needs.sast.outputs.output_json }}
+          SAST_KEY: ${{ needs.sast.outputs.encryption_key }}
           SBOM_REPORT: ${{ needs.sbom_generator.outputs.output_json }}
+          SBOM_KEY: ${{ needs.sbom_generator.outputs.encryption_key }}
           SECRET_REPORT: ${{ needs.secret_detection.outputs.output_json }}
+          SECRET_KEY: ${{ needs.secret_detection.outputs.encryption_key }}
           SCA_REPORT: ${{ needs.sca.outputs.output_json }}
+          SCA_KEY: ${{ needs.sca.outputs.encryption_key }}
           REPO_NAME: ${{ github.event.repository.name }}
           REPORTS_ROOT: ${{ runner.temp }}/reports-repo
         if: success() && steps.clone.outcome == 'success'
         run: |
           REPO_FOLDER="$REPORTS_ROOT/$REPO_NAME"
-          echo "Writing new reports to $REPO_FOLDER"
-          echo "$SAST_REPORT" > "$REPO_FOLDER/sast-results.json"
-          echo "$SBOM_REPORT" > "$REPO_FOLDER/sbom-results.json"
-          echo "$SECRET_REPORT" > "$REPO_FOLDER/secrets-results.json"
-          echo "$SCA_REPORT" > "$REPO_FOLDER/sca-results.json"
+          echo "Writing and decrypting reports to $REPO_FOLDER"
+          
+          # Function to decrypt data
+          decrypt_report() {
+            local ENCRYPTED_DATA="$1"
+            local KEY="$2"
+            local OUTPUT_FILE="$3"
+            
+            if [ -n "$KEY" ] && [ "$ENCRYPTED_DATA" != "{}" ]; then
+              echo "$ENCRYPTED_DATA" | base64 -d > "${OUTPUT_FILE}.encrypted"
+              openssl enc -aes-256-cbc -d -pbkdf2 -in "${OUTPUT_FILE}.encrypted" -out "$OUTPUT_FILE" -pass pass:"$KEY"
+              rm -f "${OUTPUT_FILE}.encrypted"
+            else
+              echo "$ENCRYPTED_DATA" > "$OUTPUT_FILE"
+            fi
+          }
+          
+          # Decrypt and write SAST results
+          decrypt_report "$SAST_REPORT" "$SAST_KEY" "$REPO_FOLDER/sast-results.json"
+          
+          # Decrypt and write SBOM results
+          decrypt_report "$SBOM_REPORT" "$SBOM_KEY" "$REPO_FOLDER/sbom-results.json"
+          
+          # Decrypt and write Secret Detection results
+          decrypt_report "$SECRET_REPORT" "$SECRET_KEY" "$REPO_FOLDER/secrets-results.json"
+          
+          # Decrypt and write SCA results
+          decrypt_report "$SCA_REPORT" "$SCA_KEY" "$REPO_FOLDER/sca-results.json"
 
       - name: Commit and Push to Reports Repo
         env:
@@ -283,13 +390,14 @@ jobs:
       - name: Security Output Check Step
         id: check
         run: |
-          # Default to proceed=true
-          echo "proceed=true" >> $GITHUB_OUTPUT
-
           if [[ "$BREAK_ON_FAILURE_FLAG" == "true" ]]; then
             echo "BREAK_ON_FAILURE_FLAG is true: checking all security job results."
             # Check if ANY of the security jobs FAILED (result != success)
-            if [[ "${{ needs.sast.result }}" != "success" ]] ||  [[ "${{ needs.sbom_generator.result }}" != "success" ]] || [[ "${{ needs.secret_detection.result }}" != "success" ]] || [[ "${{ needs.sca.result }}" != "success" ]]; then
+            if [[ "${{ needs.sast.result }}" != "success" ]] || \
+              [[ "${{ needs.sbom_generator.result }}" != "success" ]] || \
+              [[ "${{ needs.secret_detection.result }}" != "success" ]] || \
+              [[ "${{ needs.sca.result }}" != "success" ]]; then
+              
               echo "One or more security checks failed. Halting deployment."
               echo "proceed=false" >> $GITHUB_OUTPUT
               # Exit with non-zero code to fail this job
