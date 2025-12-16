@@ -31,7 +31,7 @@ on:
         type: string
       DryRun:
         required: false
-        type: string
+        type: boolean
         default: false
     secrets:
       REPORTS_REPO_PAT:
@@ -41,6 +41,7 @@ on:
       HOST:
         required: false
       SSH_PRIVATE_KEY:
+        required: false
 jobs:
     sast:
         name: Running SAST [BearerCLI] on project
@@ -61,25 +62,15 @@ jobs:
             id: sast
             if: always()
             run: | 
-              FILE="SAST-results.json"
-              GPG_FILE="$FILE.gpg"
-              PASSPHRASE="$GPG_PASSPHRASE"
-
-              if [ -f "$FILE" ]; then
-                # Encrypt: gpg --batch --yes --passphrase-fd 0 --symmetric --output output.gpg input.file <<< "$PASSPHRASE"
-                gpg --batch --yes --passphrase-fd 0 --symmetric --output "$GPG_FILE" "$FILE" <<< "$PASSPHRASE"
-                
-                if [ $? -eq 0 ]; then
-                  # Base64 encode and output encrypted data
-                  ENCRYPTED_BASE64=$(cat "$GPG_FILE" | base64 -w 0)
-                  echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-                  echo "$ENCRYPTED_BASE64" >> $GITHUB_OUTPUT
-                  echo "EOF" >> $GITHUB_OUTPUT
-                else
-                  echo "outputJson={}" >> $GITHUB_OUTPUT # Encryption failed
-                fi
+              # Use a conditional command to check if the file exists before attempting to read it
+              if [ -f "SAST-results.json" ]; then
+                echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+                cat SAST-results.json | jq -c . >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
               else
-                echo "outputJson={}" >> $GITHUB_OUTPUT # File not found
+                # If the file does not exist (e.g., if Bearer failed to run entirely), 
+                # output an empty JSON object to prevent downstream errors.
+                echo "outputJson={}" >> $GITHUB_OUTPUT
               fi
 
     sbom_generator:
@@ -99,24 +90,15 @@ jobs:
               id: sbom
               if: always()
               run: | 
-                FILE="sbom.json"
-                GPG_FILE="$FILE.gpg"
-                PASSPHRASE="$GPG_PASSPHRASE"
-
-                if [ -f "$FILE" ]; then
-                  # Encrypt
-                  gpg --batch --yes --passphrase-fd 0 --symmetric --output "$GPG_FILE" "$FILE" <<< "$PASSPHRASE"
-                  
-                  if [ $? -eq 0 ]; then
-                    # Base64 encode and output encrypted data
-                    ENCRYPTED_BASE64=$(cat "$GPG_FILE" | base64 -w 0)
-                    echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-                    echo "$ENCRYPTED_BASE64" >> $GITHUB_OUTPUT
-                    echo "EOF" >> $GITHUB_OUTPUT
-                  else
-                    echo "outputJson={}" >> $GITHUB_OUTPUT
-                  fi
+                # Check if the output file was successfully created
+                if [ -f "sbom.json" ]; then
+                  # Use the robust multiline method to safely pass the JSON content
+                  echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+                  cat sbom.json | jq -c . >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
                 else
+                  # If the file does not exist, output an empty JSON object to prevent 
+                  # errors in the downstream 'PublishOutput' job
                   echo "outputJson={}" >> $GITHUB_OUTPUT
                 fi
 
@@ -124,7 +106,7 @@ jobs:
         name: Running Truffle-Hog on project
         runs-on: ubuntu-latest
         outputs:
-            output_json: ${{ steps.secrets.outputs.outputJson }}
+            output_json: ${{ steps.secrets.outputJson }}
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -137,32 +119,21 @@ jobs:
               id: secrets
               if: always()
               run: |
-                FILE="secrets-result.json"
-                GPG_FILE="$FILE.gpg"
-                PASSPHRASE="$GPG_PASSPHRASE"
-
-                if [ -f "$FILE" ]; then
-                  # Encrypt
-                  gpg --batch --yes --passphrase-fd 0 --symmetric --output "$GPG_FILE" "$FILE" <<< "$PASSPHRASE"
-                  
-                  if [ $? -eq 0 ]; then
-                    # Base64 encode and output encrypted data
-                    ENCRYPTED_BASE64=$(cat "$GPG_FILE" | base64 -w 0)
-                    echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-                    echo "$ENCRYPTED_BASE64" >> $GITHUB_OUTPUT
-                    echo "EOF" >> $GITHUB_OUTPUT
-                  else
-                    echo "outputJson={}" >> $GITHUB_OUTPUT
-                  fi
+                # Check if the output file was successfully created
+                if [ -f "secrets-result.json" ]; then
+                  echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+                  # Read the file and compact it with jq -c .
+                  cat secrets-result.json | jq -c . >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
                 else
+                  # If the file does not exist, output an empty JSON object to prevent downstream errors
                   echo "outputJson={}" >> $GITHUB_OUTPUT
                 fi
-    
     sca:
         name: Running Grype [SCA] on project
         runs-on: ubuntu-latest
         outputs:
-            output_json: ${{ steps.sca.outputs.outputJson }}
+            output_json: ${{ steps.sca.outputJson }}
         steps:
         - name: Checkout code
           uses: actions/checkout@v4
@@ -179,27 +150,17 @@ jobs:
           id: sca
           if: always()
           run: | 
-            FILE="sca-results.json"
-            GPG_FILE="$FILE.gpg"
-            PASSPHRASE="$GPG_PASSPHRASE"
-
-            if [ -f "$FILE" ]; then
-              # Encrypt 
-              gpg --batch --yes --passphrase-fd 0 --symmetric --output "$GPG_FILE" "$FILE" <<< "$PASSPHRASE"
-              
-              if [ $? -eq 0 ]; then
-                # Base64 encode and output encrypted data
-                ENCRYPTED_BASE64=$(cat "$GPG_FILE" | base64 -w 0)
-                echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-                echo "$ENCRYPTED_BASE64" >> $GITHUB_OUTPUT
-                echo "EOF" >> $GITHUB_OUTPUT
-              else
-                echo "outputJson={}" >> $GITHUB_OUTPUT
-              fi
+            # Check if the output file was successfully created
+            if [ -f "sca-results.json" ]; then
+              # Use the robust multiline method to safely pass the JSON content
+              echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+              cat sca-results.json | jq -c . >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
             else
+              # If the file does not exist, output an empty JSON object to prevent 
+              # errors in the downstream 'PublishOutput' job
               echo "outputJson={}" >> $GITHUB_OUTPUT
             fi
-
     PublishOutput:
       name: Publishing output of all Steps after basic Review
       runs-on: ubuntu-latest
@@ -215,9 +176,13 @@ jobs:
           env:
             REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
           run: |
+            # inputs.repo_link should be "owner/repo" (same format used previously)
             REPO_FULL="${{ inputs.repo_link }}"
             TARGET_DIR="${RUNNER_TEMP}/reports-repo"
+
+            # Use the PAT to authenticate. We use x-access-token so the token owner is the actor for the push.
             GIT_CLONE_URL="https://x-access-token:${REPORTS_REPO_PAT}@github.com/${REPO_FULL}.git"
+
             echo "Cloning reports repo into $TARGET_DIR"
             git clone "${GIT_CLONE_URL}" "${TARGET_DIR}"
 
@@ -230,52 +195,22 @@ jobs:
             echo "Creating reports folder: $REPO_FOLDER"
             mkdir -p "$REPO_FOLDER"
 
-        - name: Decrypt and Write Reports
+        - name: Write Reports
           env:
-            SAST_REPORT_ENCRYPTED: ${{ needs.sast.outputs.output_json }}
-            SBOM_REPORT_ENCRYPTED: ${{ needs.sbom_generator.outputs.output_json }}
-            SECRET_REPORT_ENCRYPTED: ${{ needs.secret_detection.outputs.output_json }}
-            SCA_REPORT_ENCRYPTED: ${{ needs.sca.outputs.output_json }}
-            GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+            SAST_REPORT: ${{ needs.sast.outputs.output_json }}
+            SBOM_REPORT: ${{ needs.sbom_generator.outputs.output_json }}
+            SECRET_REPORT: ${{ needs.secret_detection.outputs.output_json }}
+            SCA_REPORT: ${{ needs.sca.outputs.output_json }}
             REPO_NAME: ${{ github.event.repository.name }}
             REPORTS_ROOT: ${{ runner.temp }}/reports-repo
           run: |
             REPO_FOLDER="$REPORTS_ROOT/$REPO_NAME"
-            PASSPHRASE="$GPG_PASSPHRASE"
+            echo "Writing new reports to $REPO_FOLDER"
+            echo "$SAST_REPORT" > "$REPO_FOLDER/sast-results.json"
+            echo "$SBOM_REPORT" > "$REPO_FOLDER/sbom-results.json"
+            echo "$SECRET_REPORT" > "$REPO_FOLDER/secrets-results.json"
+            echo "$SCA_REPORT" > "$REPO_FOLDER/sca-results.json"
 
-            # Function to decrypt and write the report
-            decrypt_report() {
-              local ENCRYPTED_BASE64="$1"
-              local OUTPUT_FILENAME="$2"
-              
-              if [ "$ENCRYPTED_BASE64" = "{}" ]; then
-                echo "Skipping $OUTPUT_FILENAME: Empty/Failed report."
-                return 0
-              fi
-
-              # 1. Base64 Decode the encrypted content back to a binary file
-              echo "$ENCRYPTED_BASE64" | base64 --decode > "$REPO_FOLDER/$OUTPUT_FILENAME.gpg"
-              
-              # 2. Decrypt the binary file using the passphrase 
-              gpg --batch --yes --passphrase-fd 0 --decrypt --output "$REPO_FOLDER/$OUTPUT_FILENAME" "$REPO_FOLDER/$OUTPUT_FILENAME.gpg" <<< "$PASSPHRASE"
-              
-              if [ $? -eq 0 ]; then
-                  echo "Successfully decrypted $OUTPUT_FILENAME."
-                  # Clean up the temporary encrypted file
-                  rm "$REPO_FOLDER/$OUTPUT_FILENAME.gpg"
-              else
-                  echo "❌ ERROR: Decryption failed for $OUTPUT_FILENAME. Leaving file empty."
-                  echo "{}" > "$REPO_FOLDER/$OUTPUT_FILENAME"
-              fi
-            }
-
-            echo "Decrypting and writing reports to $REPO_FOLDER"
-
-            decrypt_report "$SAST_REPORT_ENCRYPTED" "sast-results.json"
-            decrypt_report "$SBOM_REPORT_ENCRYPTED" "sbom-results.json"
-            decrypt_report "$SECRET_REPORT_ENCRYPTED" "secrets-results.json"
-            decrypt_report "$SCA_REPORT_ENCRYPTED" "sca-results.json"
-            
         - name: Commit and Push to Reports Repo (using PAT)
           env:
             REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
@@ -290,7 +225,7 @@ jobs:
             CHANGED_FILES=$(git diff --staged --name-only | xargs -n1 basename | tr '\n' ', ')
             CHANGED_FILES="${CHANGED_FILES%, }"
 
-            BRANCH_NAME="${{ github.ref_name }}"
+            BRANCH_NAME="${{ github.ref_name }}"  # branch name that triggered the workflow in the source repo
             COMMIT_MESSAGE="${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES"
 
             git config user.name "automation-bot"
@@ -306,6 +241,7 @@ jobs:
 
             echo "Successfully pushed report changes to the reports repository."
             echo "Commit Message: $COMMIT_MESSAGE"
+
     pre_build:
       name: Running Build (pre-check)
       runs-on: ubuntu-latest
@@ -316,15 +252,6 @@ jobs:
       outputs:
         proceed: ${{ steps.check.outputs.proceed }}
       steps:
-        - name: Debug inputs and previous job results
-          run: |
-            echo "DEBUG: inputs.BuildScript='${{ inputs.BuildScript }}'"
-            echo "DEBUG: inputs.DryRun='${{ inputs.DryRun }}'"
-            echo "DEBUG: inputs.deployment_type='${{ inputs.deployment_type }}'"
-            echo "DEBUG: needs.sast.result='${{ needs.sast.result }}'"
-            echo "DEBUG: needs.sbom_generator.result='${{ needs.sbom_generator.result }}'"
-            echo "DEBUG: needs.secret_detection.result='${{ needs.secret_detection.result }}'"
-            echo "DEBUG: needs.sca.result='${{ needs.sca.result }}'"
         - name: Security Output Check Step
           id: check
           run: |
@@ -342,15 +269,12 @@ jobs:
               echo "BREAK_ON_FAILURE_FLAG is false, running build regardless of reports."
             fi
             echo "proceed=true" >> $GITHUB_OUTPUT
-        - name: Debug proceed output
-          if: always()
-          run: |
-            echo "DEBUG: pre_build step 'check' output proceed='${{ steps.check.outputs.proceed }}'"
+
     custom_build:
       name: Custom Build Job (invokes CustomBuild.yml)
       needs: pre_build
-      if: ${{ inputs.DryRun != 'true' && inputs.BuildScript && needs.pre_build.outputs.proceed == 'true' }}
-      uses: SathyaNarayana-indsys/studious-octo-meme/.github/workflows/CustomBuild.yml@main
+      if: ${{ inputs.DryRun != true && inputs.BuildScript != '' && needs.pre_build.result == 'success' }}
+      uses: ./.github/workflows/CustomBuild.yml
       with:
         deployment_type:   ${{ inputs.deployment_type }}
         runScript:  ${{ inputs.runScript }}
@@ -364,8 +288,8 @@ jobs:
     direct_deploy:
       name: Direct Deploy Job (invokes DirectDeployBuild.yml)
       needs: pre_build
-      if: ${{ !inputs.BuildScript && inputs.DryRun != 'true' && needs.pre_build.outputs.proceed == 'true' }}
-      uses: SathyaNarayana-indsys/studious-octo-meme/.github/workflows/DirectDeployBuild.yml@main
+      if: ${{ inputs.DryRun != true && inputs.BuildScript == '' && needs.pre_build.result == 'success' }}
+      uses: ./.github/workflows/DirectDeployBuild.yml
       with:
         deployment_type:   ${{ inputs.deployment_type }}
         runScript:  ${{ inputs.runScript }}

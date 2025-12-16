@@ -32,7 +32,7 @@ jobs:
   vm_deploy:
     name: VM Deployment Process
     if: ${{ inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'BareMetal' }}
-    uses:  SathyaNarayana-indsys/studious-octo-meme/.github/workflows/VM-Deployment.yml@main
+    uses: ./.github/workflows/VM-Deployment.yml
     with:
       runScript: ${{ inputs.runScript }}
       deploymentFolder: ${{ inputs.deploymentFolder }}
@@ -45,4 +45,4 @@ jobs:
   container_deploy:
     name: Container Deployment Process
     if: ${{ inputs.deployment_type == 'Container' || inputs.deployment_type == 'container' }}
-    uses:  SathyaNarayana-indsys/studious-octo-meme/.github/workflows/Container-Deployment.yml@main
+    uses:  SathyaNarayana-indsys/studious-octo-meme/.github/workflows/Container-Deployment.yml
