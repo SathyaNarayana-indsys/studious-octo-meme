@@ -1,4 +1,4 @@
-name: Build Pipeline
+name: CustomBuild Pipeline
 run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
 
 on:

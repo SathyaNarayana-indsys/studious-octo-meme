@@ -1,4 +1,4 @@
-name: Build Pipeline
+name: DirectDeployBuild Pipeline
 run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
 
 on:
