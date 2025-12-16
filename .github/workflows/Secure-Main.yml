@@ -327,7 +327,7 @@ jobs:
     name: VM Deployment Process
     # Condition to run for VM, Server, or BareMetal deployment types
     if: ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'BareMetal') }}
-    uses: .github/workflows/VM-Deployment.yml
+    uses: ./VM-Deployment.yml
     with:
       runScript: ${{ inputs.runScript }}
       deploymentFolder: ${{ inputs.deploymentFolder }}
@@ -341,7 +341,7 @@ jobs:
     name: Container Deployment Process
     # Condition to run for Container deployment types
     if: ${{ !inputs.DryRun && needs.pre_build.outputs.proceed == 'true' && (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container') }}
-    uses: .github/workflows/Container-Deployment.yml
+    uses: ./Container-Deployment.yml
     # Add an empty 'with' block if the container workflow requires no inputs, or add necessary inputs
     # with: 
     #   someInput: ${{ inputs.someInput }}
