@@ -343,7 +343,7 @@ jobs:
   vm_deploy:
     name: VM Deployment Process
     needs: [build]
-    if: ${{ !inputs.DryRun && (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'server' || ) }}
+    if: ${{ !inputs.DryRun && (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'server' ) }}
     uses: ./.github/workflows/VM-Deployment.yml
     with:
       runScript: ${{ inputs.runScript }}
@@ -357,5 +357,5 @@ jobs:
   container_deploy:
     name: Container Deployment Process
     needs: [build]
-    if: ${{ !inputs.DryRun && (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container') }}
+    if: ${{ !inputs.DryRun && (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container' || inputs.deployment_type == 'microservice' ) }}
     uses: ./.github/workflows/Container-Deployment.yml
