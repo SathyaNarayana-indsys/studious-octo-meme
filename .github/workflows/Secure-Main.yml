@@ -50,10 +50,10 @@ on:
       REPORTS_REPO_PAT:
         description: 'PAT for cloning and pushing to the reports repository.'
         required: false
-      USER:
+      SSH_USER:
         description: 'SSH user for VM deployment.'
         required: false
-      HOST:
+      SSH_HOSTNAME:
         description: 'SSH host for VM deployment.'
         required: false
       SSH_PRIVATE_KEY:
@@ -462,8 +462,8 @@ jobs:
       deploymentFolder: ${{ inputs.deploymentFolder }}
       executionRequired: ${{ inputs.executionRequired }}
     secrets:
-      USER: ${{ secrets.USER }}
-      HOST: ${{ secrets.HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_HOSTNAME: ${{ secrets.SSH_HOSTNAME }}
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
   container_deploy:
