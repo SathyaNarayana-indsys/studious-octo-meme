@@ -46,19 +46,10 @@ on:
         required: false
         type: boolean
         default: false
-    secrets:
-      REPORTS_REPO_PAT:
-        description: 'PAT for cloning and pushing to the reports repository.'
+      environmentName: 
         required: false
-      SSH_USER:
-        description: 'SSH user for VM deployment.'
-        required: false
-      SSH_HOSTNAME:
-        description: 'SSH host for VM deployment.'
-        required: false
-      SSH_PRIVATE_KEY:
-        description: 'SSH private key for VM deployment.'
-        required: false
+        type: string
+        default: main
 
 jobs:
   sast:
@@ -461,10 +452,8 @@ jobs:
       runScript: ${{ inputs.runScript }}
       deploymentFolder: ${{ inputs.deploymentFolder }}
       executionRequired: ${{ inputs.executionRequired }}
-    secrets:
-      SSH_USER: ${{ secrets.SSH_USER }}
-      SSH_HOSTNAME: ${{ secrets.SSH_HOSTNAME }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      environmentName: ${{ inputs.environmentName }}
+    secrets: inherit
 
   container_deploy:
     name: Container Deployment Process
