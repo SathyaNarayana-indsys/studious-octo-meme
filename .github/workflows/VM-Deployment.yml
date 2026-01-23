@@ -54,13 +54,30 @@ jobs:
           curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
           sudo dpkg -i session-manager-plugin.deb
 
-      - name: AWS VM Deploy
-        # if: ${{ inputs.executionRequired && inputs.envType == 'AWS' }}
+      # - name: AWS VM Deploy
+      #   # if: ${{ inputs.executionRequired && inputs.envType == 'AWS' }}
+      #   run: |
+      #     rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx -e "ssh -o ProxyCommand='aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=22'" ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOSTNAME }}:${{ inputs.deploymentFolder }}
+    
+      - name: Configure SSH
         run: |
-          rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx -e "ssh -o ProxyCommand='aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=22'" ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOSTNAME }}:${{ inputs.deploymentFolder }}
+          mkdir -p ~/.ssh
+          cat >> ~/.ssh/config <<EOF
+          Host ${{ secrets.SSH_HOSTNAME }}
+            StrictHostKeyChecking accept-new
+            UserKnownHostsFile ~/.ssh/known_hosts
+            ProxyCommand aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=22
+          EOF
 
+      - name: Deploy Folder to AWS VM
+        run: |
+          rsync -avz --exclude '.git' \
+            --chown=github:www-data \
+            --chmod=Dg=rwx,Fg=rwx \
+            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOSTNAME }}:${{ inputs.deploymentFolder }}
+            
       - name: Execute script on AWS VM
-        if: ${{ inputs.executionRequired && inputs.envType == 'AWS' }}
+        if: ${{ inputs.executionRequired }}
         run: |
           aws ssm start-session --document-name 'AWS-StartNonInteractiveCommand' --parameters '{"command": ["chmod +x ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}"]}' --target ${{ secrets.SSH_HOSTNAME }}
           aws ssm start-session --document-name 'AWS-StartNonInteractiveCommand' --parameters '{"command": ["/bin/bash ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}"]}' --target ${{ secrets.SSH_HOSTNAME }}
