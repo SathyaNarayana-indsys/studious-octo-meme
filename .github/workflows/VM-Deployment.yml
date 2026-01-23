@@ -38,14 +38,15 @@ jobs:
 
       - name: Configure AWS credentials
         if: inputs.envType == 'AWS'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5.1.1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
-        permissions:
-          id-token: write   # This is required for requesting the JWT
-          contents: read 
+          output-credentials: true
+        # permissions:
+        #   id-token: write   # This is required for requesting the JWT
+        #   contents: read 
 
       - name: Install AWS CLI Session Manager plugin
         if: inputs.envType == 'AWS'
