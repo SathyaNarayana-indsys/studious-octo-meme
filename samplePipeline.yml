@@ -13,11 +13,12 @@ jobs:
       DryRun: false
       deploymentFolder: '/tmp/test' #the desired folder for deployment
       envType: 'AWS' #AWS or GCP or OnPrem Location
+      executionRequired: 'true'
 
     secrets:
       REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
       USER: ${{ secrets.SSH_USER }}
       HOST: ${{ secrets.SSH_HOSTNAME }}
       # SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
+      AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
       AWS_SECRET_ACCESS_KEY: ${{AWS_SECRET_ACCESS_KEY}} 

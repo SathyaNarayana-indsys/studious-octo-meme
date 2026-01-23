@@ -55,7 +55,7 @@ jobs:
           sudo dpkg -i session-manager-plugin.deb
 
       - name: AWS VM Deploy
-        if: ${{ inputs.executionRequired && inputs.envType == 'AWS' }}
+        # if: ${{ inputs.executionRequired && inputs.envType == 'AWS' }}
         run: |
           rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx -e "ssh -o ProxyCommand='aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=22'" ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOSTNAME }}:${{ inputs.deploymentFolder }}
 
