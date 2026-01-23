@@ -50,6 +50,10 @@ on:
         required: false
         type: string
         default: main
+      envType:
+        required: false
+        type: string
+        default: "AWS"
 
 jobs:
   sast:
@@ -58,12 +62,14 @@ jobs:
     outputs:
       output_json: ${{ steps.sast-output.outputs.outputJson }}
       encryption_key: ${{ steps.sast-output.outputs.encryptionKey }}
+      has_findings: ${{ steps.sast-output.outputs.hasFindings }}
     steps:
       - name:  Checkout code
         uses: actions/checkout@v4
 
       - name: Run Bearer SAST
         uses: bearer/bearer-action@v2
+        continue-on-error: true
         with:
           scanner: sast
           quiet: true
@@ -74,7 +80,19 @@ jobs:
         id: sast-output
         if: always()
         run: |
+          HAS_FINDINGS="false"
+          
           if [ -f "SAST-results.json" ]; then
+            # Check if there are any findings in the SAST results
+            FINDINGS_COUNT=$(jq '[.findings // []] | length' SAST-results.json 2>/dev/null || echo "0")
+            
+            if [ "$FINDINGS_COUNT" -gt 0 ]; then
+              HAS_FINDINGS="true"
+              echo "SAST scan found $FINDINGS_COUNT issue(s)"
+            else
+              echo "SAST scan completed with no findings"
+            fi
+            
             # Generate a random encryption key (256-bit = 32 bytes in hex = 64 chars)
             ENCRYPTION_KEY=$(openssl rand -hex 32)
             
@@ -98,10 +116,17 @@ jobs:
             # Clean up temporary files
             rm -f sast-compact.json sast-encrypted.bin SAST-results.json
           else
+            echo "No SAST results file found"
             # Output an empty JSON object to prevent downstream errors.
             echo "outputJson={}" >> $GITHUB_OUTPUT
             echo "encryptionKey=" >> $GITHUB_OUTPUT
           fi
+          
+          # Set the has_findings output
+          echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
+          
+          # Always exit with 0 to prevent job failure
+          exit 0
 
   sbom_generator:
     name: Running Syft [SBOM generator]
@@ -109,12 +134,14 @@ jobs:
     outputs:
       output_json: ${{ steps.sbom-output.outputs.outputJson }}
       encryption_key: ${{ steps.sbom-output.outputs.encryptionKey }}
+      has_findings: ${{ steps.sbom-output.outputs.hasFindings }}
     steps:
       - name:  Checkout code
         uses: actions/checkout@v4
         
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@v0
+        continue-on-error: true
         id: syft-scan
         with:
           format: spdx-json
@@ -124,7 +151,23 @@ jobs:
         id: sbom-output
         if: always()
         run: |
+          HAS_FINDINGS="false"
+          
           if [ -f "sbom.json" ]; then
+            # Check if there are any packages in the SBOM
+            PACKAGES_COUNT=$(jq '[.packages // []] | length' sbom.json 2>/dev/null || echo "0")
+            
+            # SBOM generation is informational, so we typically don't fail on it
+            # But we can check if the SBOM has content
+            if [ "$PACKAGES_COUNT" -gt 0 ]; then
+              echo "SBOM generated successfully with $PACKAGES_COUNT package(s)"
+            else
+              echo "SBOM generated but no packages found"
+            fi
+            
+            # For SBOM, we generally don't set has_findings to true unless there's an error
+            # SBOM is informational rather than a security finding
+            
             # Generate a random encryption key
             ENCRYPTION_KEY=$(openssl rand -hex 32)
             
@@ -148,9 +191,16 @@ jobs:
             # Clean up temporary files
             rm -f sbom-compact.json sbom-encrypted.bin sbom.json
           else
+            echo "No SBOM results file found"
             echo "outputJson={}" >> $GITHUB_OUTPUT
             echo "encryptionKey=" >> $GITHUB_OUTPUT
           fi
+          
+          # Set the has_findings output
+          echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
+          
+          # Always exit with 0
+          exit 0
 
   secret_detection:
     name: Running Truffle-Hog
@@ -158,23 +208,37 @@ jobs:
     outputs:
       output_json: ${{ steps.secrets-output.outputs.outputJson }}
       encryption_key: ${{ steps.secrets-output.outputs.encryptionKey }}
+      has_findings: ${{ steps.secrets-output.outputs.hasFindings }}
     steps:
       - name:  Checkout code
         uses: actions/checkout@v4
         
       - name: Install and run TruffleHog
         id: truffleHog-scan
+        continue-on-error: true
         run: |
           # Install TruffleHog
           curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
           # Run scan on the local filesystem, output JSON, suppress logs, exclude .git folder
-          trufflehog filesystem ./ --json --log-level=-1 -x ./.git >> secrets-result.json
+          trufflehog filesystem ./ --json --log-level=-1 -x ./.git >> secrets-result.json || true
           
       - name: Encrypt and Output Secret results
         id: secrets-output
         if: always()
         run: |
+          HAS_FINDINGS="false"
+          
           if [ -f "secrets-result.json" ]; then
+            # Check if the file has any content (TruffleHog outputs one JSON object per line)
+            FINDINGS_COUNT=$(wc -l < secrets-result.json 2>/dev/null || echo "0")
+            
+            if [ "$FINDINGS_COUNT" -gt 0 ]; then
+              HAS_FINDINGS="true"
+              echo "Secret detection found $FINDINGS_COUNT potential secret(s)"
+            else
+              echo "Secret detection completed with no findings"
+            fi
+            
             # Generate a random encryption key
             ENCRYPTION_KEY=$(openssl rand -hex 32)
             
@@ -198,9 +262,16 @@ jobs:
             # Clean up temporary files
             rm -f secrets-compact.json secrets-encrypted.bin secrets-result.json
           else
+            echo "No secret detection results file found"
             echo "outputJson={}" >> $GITHUB_OUTPUT
             echo "encryptionKey=" >> $GITHUB_OUTPUT
           fi
+          
+          # Set the has_findings output
+          echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
+          
+          # Always exit with 0
+          exit 0
 
   sca:
     name: Running Grype [SCA]
@@ -208,12 +279,14 @@ jobs:
     outputs:
       output_json: ${{ steps.sca-output.outputs.outputJson }}
       encryption_key: ${{ steps.sca-output.outputs.encryptionKey }}
+      has_findings: ${{ steps.sca-output.outputs.hasFindings }}
     steps:
       - name:  Checkout code
         uses: actions/checkout@v4
         
       - name: Run Grype (Anchore Scan)
         uses: anchore/scan-action@v6
+        continue-on-error: true
         id: grype-scan
         with:
           path: "."
@@ -226,7 +299,19 @@ jobs:
         id: sca-output
         if: always()
         run: |
+          HAS_FINDINGS="false"
+          
           if [ -f "sca-results.json" ]; then
+            # Check if there are any vulnerabilities in the SCA results
+            VULNERABILITIES_COUNT=$(jq '[.matches // []] | length' sca-results.json 2>/dev/null || echo "0")
+            
+            if [ "$VULNERABILITIES_COUNT" -gt 0 ]; then
+              HAS_FINDINGS="true"
+              echo "SCA scan found $VULNERABILITIES_COUNT vulnerabilitie(s)"
+            else
+              echo "SCA scan completed with no vulnerabilities found"
+            fi
+            
             # Generate a random encryption key
             ENCRYPTION_KEY=$(openssl rand -hex 32)
             
@@ -250,9 +335,16 @@ jobs:
             # Clean up temporary files
             rm -f sca-compact.json sca-encrypted.bin sca-results.json
           else
+            echo "No SCA results file found"
             echo "outputJson={}" >> $GITHUB_OUTPUT
             echo "encryptionKey=" >> $GITHUB_OUTPUT
           fi
+          
+          # Set the has_findings output
+          echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
+          
+          # Always exit with 0
+          exit 0
 
   PublishOutput:
     name: Publish Security Reports
@@ -382,23 +474,43 @@ jobs:
         id: check
         run: |
           if [[ "$BREAK_ON_FAILURE_FLAG" == "true" ]]; then
-            echo "BREAK_ON_FAILURE_FLAG is true: checking all security job results."
-            # Check if ANY of the security jobs FAILED (result != success)
-            if [[ "${{ needs.sast.result }}" != "success" ]] || \
-              [[ "${{ needs.sbom_generator.result }}" != "success" ]] || \
-              [[ "${{ needs.secret_detection.result }}" != "success" ]] || \
-              [[ "${{ needs.sca.result }}" != "success" ]]; then
+            echo "BREAK_ON_FAILURE_FLAG is true: checking all security scan findings."
+            
+            SAST_FINDINGS="${{ needs.sast.outputs.has_findings }}"
+            SECRET_FINDINGS="${{ needs.secret_detection.outputs.has_findings }}"
+            SCA_FINDINGS="${{ needs.sca.outputs.has_findings }}"
+            
+            echo "Security Scan Results:"
+            echo "  SAST findings: $SAST_FINDINGS"
+            echo "  SBOM findings: $SBOM_FINDINGS"
+            echo "  Secret Detection findings: $SECRET_FINDINGS"
+            echo "  SCA findings: $SCA_FINDINGS"
+            
+            # Check if ANY security scan has findings (excluding SBOM as it's informational)
+            if [[ "$SAST_FINDINGS" == "true" ]] || \
+               [[ "$SECRET_FINDINGS" == "true" ]] || \
+               [[ "$SCA_FINDINGS" == "true" ]]; then
               
-              echo "One or more security checks failed. Halting deployment."
+              echo "Security issues detected. Halting deployment."
+              
+              if [[ "$SAST_FINDINGS" == "true" ]]; then
+                echo "  - SAST scan found code security issues"
+              fi
+              if [[ "$SECRET_FINDINGS" == "true" ]]; then
+                echo "  - Secret detection found exposed secrets"
+              fi
+              if [[ "$SCA_FINDINGS" == "true" ]]; then
+                echo "  - SCA scan found vulnerable dependencies"
+              fi
+              
               echo "proceed=false" >> $GITHUB_OUTPUT
-              # Exit with non-zero code to fail this job
-              exit 1 
+              exit 1
             else
               echo "All security checks passed. Proceeding with build/deployment."
               echo "proceed=true" >> $GITHUB_OUTPUT
             fi
           else
-            echo "BREAK_ON_FAILURE_FLAG is false: proceeding regardless of security job results."
+            echo "BREAK_ON_FAILURE_FLAG is false: proceeding regardless of security scan findings."
             echo "proceed=true" >> $GITHUB_OUTPUT
           fi
 

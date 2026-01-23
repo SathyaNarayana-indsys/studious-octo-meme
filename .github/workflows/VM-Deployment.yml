@@ -18,7 +18,10 @@ on:
         required: false
         type: string
         default: main
-
+      envType:
+        required: false
+        type: string
+        default: "AWS"
 jobs:
   deploy:
     name: Deploy to Host VM
@@ -27,22 +30,50 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-  
-      - name: Set up SSH Key
-        uses: webfactory/ssh-agent@v0.9.0
+
+      - name: Check AWS CLI version
+        if: inputs.envType == "AWS" || inputs.executionRequired == "aws"
+        run: aws --version
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  # Change to your region
 
-      - name: Add Known Hosts
+      - name: Install AWS CLISession Manager plugin
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SSH_HOSTNAME }} >> ~/.ssh/known_hosts
+          curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
+          sudo dpkg -i session-manager-plugin.deb
 
-      - name: Deploy
+      - name: AWS VM Deploy
+        if: ${{ inputs.executionRequired && inputs.envType == 'AWS' }}
         run: |
-          rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOSTNAME }}:${{ inputs.deploymentFolder }}
+          rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx -e "ssh -o ProxyCommand='aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=22'" ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOSTNAME }}:${{ inputs.deploymentFolder }}
 
-      - name: Execute script on VM
-        if: ${{ inputs.executionRequired }}
+      - name: Execute script on a AWS VM
+        if: ${{ inputs.executionRequired && inputs.envType == "AWS"}}
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOSTNAME }} "chmod +x ${{ inputs.deploymentFolder }}/${{ inputs.runScript }} && /bin/bash ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}"
+          aws ssm start-session --document-name 'AWS-StartNonInteractiveCommand' --parameters '{"command": ["chmod +x ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}"]}' --target ${{inputs.SSH_HOSTNAME}} 
+          aws ssm start-session --document-name 'AWS-StartNonInteractiveCommand' --parameters '{"command": ["/bin/bash ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}"]}' --target ${{inputs.SSH_HOSTNAME}} 
+
+      # - name: Set up SSH Key
+      #   uses: webfactory/ssh-agent@v0.9.0
+      #   with:
+      #     ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      # - name: Add Known Hosts
+      #   run: |
+      #     mkdir -p ~/.ssh
+      #     ssh-keyscan -H ${{ secrets.SSH_HOSTNAME }} >> ~/.ssh/known_hosts
+
+      # - name: VM Deploy
+      #   if: ${{ inputs.executionRequired && inputs.envType == 'AWS' }}
+      #   run: |
+      #     rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOSTNAME }}:${{ inputs.deploymentFolder }}
+
+      # - name: Execute script on VM
+      #   if: ${{ inputs.executionRequired }}
+      #   run: |
+      #     ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOSTNAME }} "chmod +x ${{ inputs.deploymentFolder }}/${{ inputs.runScript }} && /bin/bash ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}"
