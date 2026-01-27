@@ -4,6 +4,10 @@ run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
 on:
   workflow_call:
     inputs:
+      repoUser:
+        required: false
+        type: string
+        default: "ssm-user"
       runScript:
         required: false
         type: string
@@ -66,10 +70,13 @@ jobs:
             --instance-ids "${{ secrets.INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
-              "if [ ! -f /home/ssm-user/.ssh/github_deploy ]; then",
-              "  echo \"Deploy key not found. Please set up manually. by running [ssh-keygen -t ed25519 -C 'deployment-key' -f /home/ssm-user/.ssh/github_deploy] \"",
+              "if [ ! -f /home/${{ inputs.repoUser }}/.ssh/github_deploy ]; then",
+              "  echo \"Deploy key not found. Please set up manually. by running [ssh-keygen -t ed25519 -C 'deployment-key' -f /home/${{ inputs.repoUser }}/.ssh/github_deploy] \"",
               "  echo \"and then go to GitHub: Repository Settings → Deploy Keys → Add deploy key and add the key there\"",
               "  exit 1",
+              "else",
+              "  echo \"adding keys [redundant]\"",
+              "  ssh-add /home/${{ inputs.repoUser }}/.ssh/github_deploy",
               "fi"
             ]'\
             --query 'Command.CommandId' \
@@ -110,6 +117,7 @@ jobs:
             --instance-ids "${{ secrets.INSTANCE_ID }}" \
             --parameters 'commands=[
               "git config --global credential.helper",
+              "$HOME=/home/${{ inputs.repoUser }}",
               "if [ ! -d \"${{ inputs.deploymentFolder }}\" ]; then",
               "  mkdir ${{ inputs.deploymentFolder }}",
               "fi",
