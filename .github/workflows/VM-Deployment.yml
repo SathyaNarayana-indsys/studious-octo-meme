@@ -60,7 +60,7 @@ jobs:
           curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
           sudo dpkg -i session-manager-plugin.deb
 
-      - name: Setup deploy key (one-time check)
+      - name: Check for Deployment Key (one-time check)
         run: |
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.INSTANCE_ID }}" \
@@ -71,7 +71,10 @@ jobs:
               "  echo \"and then go to GitHub: Repository Settings → Deploy Keys → Add deploy key and add the key there\"",
               "  exit 1",
               "fi"
-            ]')
+            ]'\
+            --query 'Command.CommandId' \
+            --output text
+          )
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
             --instance-id "${{ secrets.INSTANCE_ID }}"
