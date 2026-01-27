@@ -105,7 +105,7 @@ jobs:
       - name: Sync repo to VM [AWS version] #clone/sync repo in VM through SSM
         if: inputs.envType == 'AWS'
         run: |
-          SCRIPT_COMMAND_ID=$(aws ssm send-command \
+          COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
             --instance-ids "${{ secrets.INSTANCE_ID }}" \
             --parameters 'commands=[
@@ -128,7 +128,7 @@ jobs:
             --output text
           )
           aws ssm wait command-executed \
-            --command-id "$SCRIPT_COMMAND_ID" \
+            --command-id "$COMMAND_ID" \
             --instance-id "${{ secrets.INSTANCE_ID }}"
 
           STATUS=$(aws ssm get-command-invocation \
@@ -171,7 +171,7 @@ jobs:
             --output text
           )
           aws ssm wait command-executed \
-            --command-id "$SCRIPT_COMMAND_ID" \
+            --command-id "$COMMAND_ID" \
             --instance-id "${{ secrets.INSTANCE_ID }}"
 
           STATUS=$(aws ssm get-command-invocation \
