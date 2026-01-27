@@ -78,7 +78,6 @@ jobs:
               "  eval `ssh-agent -s`",
               "  ssh-add /home/${{ inputs.repoUser }}/.ssh/github_deploy",
               "fi",
-              "fi",
             ]'\
             --query 'Command.CommandId' \
             --output text
