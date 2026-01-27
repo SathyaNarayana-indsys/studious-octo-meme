@@ -64,6 +64,7 @@ jobs:
         run: |
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
               "if [ ! -f ~/.ssh/github_deploy ]; then",
               "  echo \"Deploy key not found. Please set up manually. by running [ssh-keygen -t ed25519 -C 'deployment-key' -f ~/.ssh/github_deploy] \"",
