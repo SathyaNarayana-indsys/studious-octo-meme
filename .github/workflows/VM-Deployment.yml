@@ -75,9 +75,10 @@ jobs:
               "  echo \"and then go to GitHub: Repository Settings → Deploy Keys → Add deploy key and add the key there\"",
               "  exit 1",
               "else",
-              "  echo \"adding keys [redundant]\"",
+              "  eval `ssh-agent -s`",
               "  ssh-add /home/${{ inputs.repoUser }}/.ssh/github_deploy",
-              "fi"
+              "fi",
+              "fi",
             ]'\
             --query 'Command.CommandId' \
             --output text
