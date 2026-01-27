@@ -54,7 +54,11 @@ on:
         required: false
         type: string
         default: "AWS"
-
+      repoUser:
+        required: false
+        type: string
+        default: "ssm-user"
+        
 jobs:
   sast:
     name: Running SAST [BearerCLI]
