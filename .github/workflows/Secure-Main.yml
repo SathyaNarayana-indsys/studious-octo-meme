@@ -33,8 +33,12 @@ on:
         description: 'The target deployment folder for VM deployments.'
         required: false
         type: string
-      BuildScript:
-        description: 'The custom build script to run before deployment.'
+      BuildRequried:
+        description: 'Is Build Required'
+        required: false
+        type: string
+      BuildLanguage:
+        description: 'Which Language build script to execute'
         required: false
         type: string
       DryRun:

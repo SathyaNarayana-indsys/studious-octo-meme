@@ -1,0 +1,88 @@
+name: 'Security SBOM Generation'
+
+description: 'Run Syft for SBOM Generation'
+
+inputs:
+  output_format:
+    description: 'Output format for results'
+    required: false
+    default: 'json'
+
+outputs:
+  has_findings:
+    description: 'Whether security findings were detected'
+    value: ${{ steps.sbom-output.outputs.hasFindings }}
+  output_json: 
+    description: 'Encrypted JSON Output of the tool'
+    value: ${{ steps.sbom-output.outputs.outputJson }}
+  encryption_key: 
+    description: 'Encryption Key to decrypt the output of the tool'
+    value: ${{ steps.sbom-output.outputs.encryptionKey }}
+
+runs:
+  - name:  Checkout code
+    uses: actions/checkout@v4
+    
+  - name: Generate SBOM with Syft
+    uses: anchore/sbom-action@v0
+    continue-on-error: true
+    id: syft-scan
+    with:
+      format: spdx-json
+      output-file: sbom.json
+      
+  - name: Encrypt and Output SBOM results
+    id: sbom-output
+    if: always()
+    shell: bash
+    run: |
+      HAS_FINDINGS="false"
+      
+      if [ -f "sbom.json" ]; then
+        # Check if there are any packages in the SBOM
+        PACKAGES_COUNT=$(jq '[.packages // []] | length' sbom.json 2>/dev/null || echo "0")
+        
+        # SBOM generation is informational, so we typically don't fail on it
+        # But we can check if the SBOM has content
+        if [ "$PACKAGES_COUNT" -gt 0 ]; then
+          echo "SBOM generated successfully with $PACKAGES_COUNT package(s)"
+        else
+          echo "SBOM generated but no packages found"
+        fi
+        
+        # For SBOM, we generally don't set has_findings to true unless there's an error
+        # SBOM is informational rather than a security finding
+        
+        # Generate a random encryption key
+        ENCRYPTION_KEY=$(openssl rand -hex 32)
+        
+        # Compact the JSON
+        cat sbom.json | jq -c . > sbom-compact.json
+        
+        # Encrypt the results using AES-256-CBC
+        openssl enc -aes-256-cbc -salt -pbkdf2 -in sbom-compact.json -out sbom-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
+        
+        # Base64 encode the encrypted output
+        ENCRYPTED_DATA=$(base64 -w 0 sbom-encrypted.bin)
+        
+        # Output the encrypted data
+        echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+        echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        # Output the encryption key
+        echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
+        
+        # Clean up temporary files
+        rm -f sbom-compact.json sbom-encrypted.bin sbom.json
+      else
+        echo "No SBOM results file found"
+        echo "outputJson={}" >> $GITHUB_OUTPUT
+        echo "encryptionKey=" >> $GITHUB_OUTPUT
+      fi
+      
+      # Set the has_findings output
+      echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
+      
+      # Always exit with 0
+      exit 0

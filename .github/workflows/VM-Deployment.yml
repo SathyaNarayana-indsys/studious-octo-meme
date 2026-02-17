@@ -1,4 +1,4 @@
-name: VM Deployment Pipeline
+name: VM Deployment Pipeline via git
 run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
 
 on:

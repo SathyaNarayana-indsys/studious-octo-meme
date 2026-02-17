@@ -1,0 +1,117 @@
+name: 'Security Publish Outputs step'
+
+description: 'Publish the outputs of the security Steps'
+
+inputs:
+  
+
+runs:
+  using: 'composite'
+  steps:
+      - name: Setup Git User
+        run: |
+          git config --global user.name "automation-bot"
+          git config --global user.email "automation-bot@example.com"
+
+      - name: 🔗 Clone the reports repo (using PAT)
+        id: clone
+        env:
+          REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
+        run: |
+          REPO_FULL="${{ inputs.repo_link }}"
+          TARGET_DIR="${RUNNER_TEMP}/reports-repo"
+          GIT_CLONE_URL="https://x-access-token:${REPORTS_REPO_PAT}@github.com/${REPO_FULL}.git"
+          
+          # Only clone if REPORTS_REPO_PAT is provided
+          if [ -z "${REPORTS_REPO_PAT}" ]; then
+            echo "REPORTS_REPO_PAT secret is not set. Skipping clone."
+            exit 0
+          fi
+
+          echo "Cloning reports repo into $TARGET_DIR"
+          git clone "${GIT_CLONE_URL}" "${TARGET_DIR}"
+
+      - name: Prepare Reports Folder
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+          REPORTS_ROOT: ${{ runner.temp }}/reports-repo
+        if: success() && steps.clone.outcome == 'success'
+        run: |
+          REPO_FOLDER="$REPORTS_ROOT/$REPO_NAME"
+          echo "Creating reports folder: $REPO_FOLDER"
+          mkdir -p "$REPO_FOLDER"
+
+      - name: Decrypt and Write Reports
+        env:
+          SAST_REPORT: ${{ needs.sast.outputs.output_json }}
+          SAST_KEY: ${{ needs.sast.outputs.encryption_key }}
+          SBOM_REPORT: ${{ needs.sbom_generator.outputs.output_json }}
+          SBOM_KEY: ${{ needs.sbom_generator.outputs.encryption_key }}
+          SECRET_REPORT: ${{ needs.secret_detection.outputs.output_json }}
+          SECRET_KEY: ${{ needs.secret_detection.outputs.encryption_key }}
+          SCA_REPORT: ${{ needs.sca.outputs.output_json }}
+          SCA_KEY: ${{ needs.sca.outputs.encryption_key }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          REPORTS_ROOT: ${{ runner.temp }}/reports-repo
+        if: success() && steps.clone.outcome == 'success'
+        run: |
+          REPO_FOLDER="$REPORTS_ROOT/$REPO_NAME"
+          echo "Writing and decrypting reports to $REPO_FOLDER"
+          
+          # Function to decrypt data
+          decrypt_report() {
+            local ENCRYPTED_DATA="$1"
+            local KEY="$2"
+            local OUTPUT_FILE="$3"
+            
+            if [ -n "$KEY" ] && [ "$ENCRYPTED_DATA" != "{}" ]; then
+              echo "$ENCRYPTED_DATA" | base64 -d > "${OUTPUT_FILE}.encrypted"
+              openssl enc -aes-256-cbc -d -pbkdf2 -in "${OUTPUT_FILE}.encrypted" -out "$OUTPUT_FILE" -pass pass:"$KEY"
+              rm -f "${OUTPUT_FILE}.encrypted"
+            else
+              echo "$ENCRYPTED_DATA" > "$OUTPUT_FILE"
+            fi
+          }
+          
+          # Decrypt and write SAST results
+          decrypt_report "$SAST_REPORT" "$SAST_KEY" "$REPO_FOLDER/sast-results.json"
+          
+          # Decrypt and write SBOM results
+          decrypt_report "$SBOM_REPORT" "$SBOM_KEY" "$REPO_FOLDER/sbom-results.json"
+          
+          # Decrypt and write Secret Detection results
+          decrypt_report "$SECRET_REPORT" "$SECRET_KEY" "$REPO_FOLDER/secrets-results.json"
+          
+          # Decrypt and write SCA results
+          decrypt_report "$SCA_REPORT" "$SCA_KEY" "$REPO_FOLDER/sca-results.json"
+
+      - name: Commit and Push to Reports Repo
+        env:
+          REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
+        working-directory: ${{ runner.temp }}/reports-repo
+        if: success() && steps.clone.outcome == 'success'
+        run: |
+          git add .
+          if git diff --staged --quiet; then
+            echo "No changes detected. Nothing to commit."
+            exit 0
+          fi
+
+          CHANGED_FILES=$(git diff --staged --name-only | xargs -n1 basename | tr '\n' ', ')
+          CHANGED_FILES="${CHANGED_FILES%, }"
+
+          BRANCH_NAME="${{ github.ref_name }}"
+          COMMIT_MESSAGE="${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES"
+
+          git config user.name "automation-bot"
+          git config user.email "automation-bot@example.com"
+
+          git commit -m "$COMMIT_MESSAGE" || { echo "commit failed or nothing to commit"; exit 0; }
+
+          REPO_FULL="${{ inputs.repo_link }}"
+          AUTH_PUSH_URL="https://x-access-token:${REPORTS_REPO_PAT}@github.com/${REPO_FULL}.git"
+          git remote set-url origin "${AUTH_PUSH_URL}"
+
+          git push origin "HEAD:${BRANCH_NAME}"
+
+          echo "Successfully pushed report changes to the reports repository."

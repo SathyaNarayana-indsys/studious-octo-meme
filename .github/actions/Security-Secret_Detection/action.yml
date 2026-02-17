@@ -1,0 +1,79 @@
+name: 'Security Secret Detection Scan'
+
+description: 'Run TruffleHog  security scanning'
+
+outputs:
+  has_findings:
+    description: 'Whether security findings were detected'
+    value: ${{ steps.secrets-output.outputs.hasFindings }}
+  output_json: 
+    description: 'Encrypted JSON Output of the tool'
+    value: ${{ steps.secrets-output.outputs.outputJson }}
+  encryption_key: 
+    description: 'Encryption Key to decrypt the output of the tool'
+    value: ${{ steps.secrets-output.outputs.encryptionKey }}
+runs:
+  using: 'composite'
+  steps:
+    - name:  Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install and run TruffleHog
+      id: truffleHog-scan
+      continue-on-error: true
+      run: |
+        # Install TruffleHog
+        curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+        # Run scan on the local filesystem, output JSON, suppress logs, exclude .git folder
+        trufflehog filesystem ./ --json --log-level=-1 -x ./.git >> secrets-result.json || true
+        
+    - name: Encrypt and Output Secret results
+      id: secrets-output
+      if: always()
+      run: |
+        HAS_FINDINGS="false"
+        
+        if [ -f "secrets-result.json" ]; then
+          # Check if the file has any content (TruffleHog outputs one JSON object per line)
+          FINDINGS_COUNT=$(wc -l < secrets-result.json 2>/dev/null || echo "0")
+          
+          if [ "$FINDINGS_COUNT" -gt 0 ]; then
+            HAS_FINDINGS="true"
+            echo "Secret detection found $FINDINGS_COUNT potential secret(s)"
+          else
+            echo "Secret detection completed with no findings"
+          fi
+          
+          # Generate a random encryption key
+          ENCRYPTION_KEY=$(openssl rand -hex 32)
+          
+          # Compact the JSON
+          cat secrets-result.json | jq -c . > secrets-compact.json
+          
+          # Encrypt the results using AES-256-CBC
+          openssl enc -aes-256-cbc -salt -pbkdf2 -in secrets-compact.json -out secrets-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
+          
+          # Base64 encode the encrypted output
+          ENCRYPTED_DATA=$(base64 -w 0 secrets-encrypted.bin)
+          
+          # Output the encrypted data
+          echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+          echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Output the encryption key
+          echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
+          
+          # Clean up temporary files
+          rm -f secrets-compact.json secrets-encrypted.bin secrets-result.json
+        else
+          echo "No secret detection results file found"
+          echo "outputJson={}" >> $GITHUB_OUTPUT
+          echo "encryptionKey=" >> $GITHUB_OUTPUT
+        fi
+        
+        # Set the has_findings output
+        echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
+        
+        # Always exit with 0
+        exit 0

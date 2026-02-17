@@ -1,0 +1,81 @@
+name: 'Security SAST Scan'
+
+description: 'Run Bearer SAST security scanning'
+
+outputs:
+  has_findings:
+    description: 'Whether security findings were detected'
+    value: ${{ steps.sast-output.outputs.hasFindings }}
+  output_json: 
+    description: 'Encrypted JSON Output of the tool'
+    value: ${{ steps.sast-output.outputs.outputJson }}
+  encryption_key: 
+    description: 'Encryption Key to decrypt the output of the tool'
+    value: ${{ steps.sast-output.outputs.encryptionKey }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name:  Checkout code
+      uses: actions/checkout@v4
+    - name: Run Bearer SAST
+      uses: bearer/bearer-action@v2
+      continue-on-error: true
+      with:
+        scanner: sast
+        quiet: true
+        format: json
+        output: SAST-results.json
+        
+    - name: Encrypt and Output SAST results
+      id: sast-output
+      if: always()
+      shell: bash
+      run: |
+        HAS_FINDINGS="false"
+        
+        if [ -f "SAST-results.json" ]; then
+          # Check if there are any findings in the SAST results
+          FINDINGS_COUNT=$(jq '[.findings // []] | length' SAST-results.json 2>/dev/null || echo "0")
+          
+          if [ "$FINDINGS_COUNT" -gt 0 ]; then
+            HAS_FINDINGS="true"
+            echo "SAST scan found $FINDINGS_COUNT issue(s)"
+          else
+            echo "SAST scan completed with no findings"
+          fi
+          
+          # Generate a random encryption key (256-bit = 32 bytes in hex = 64 chars)
+          ENCRYPTION_KEY=$(openssl rand -hex 32)
+          
+          # Compact the JSON
+          cat SAST-results.json | jq -c . > sast-compact.json
+          
+          # Encrypt the results using AES-256-CBC
+          openssl enc -aes-256-cbc -salt -pbkdf2 -in sast-compact.json -out sast-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
+          
+          # Base64 encode the encrypted output for safe transport
+          ENCRYPTED_DATA=$(base64 -w 0 sast-encrypted.bin)
+          
+          # Output the encrypted data
+          echo "outputJson<<EOF" >> $GITHUB_OUTPUT
+          echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Output the encryption key
+          echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
+          
+          # Clean up temporary files
+          rm -f sast-compact.json sast-encrypted.bin SAST-results.json
+        else
+          echo "No SAST results file found"
+          # Output an empty JSON object to prevent downstream errors.
+          echo "outputJson={}" >> $GITHUB_OUTPUT
+          echo "encryptionKey=" >> $GITHUB_OUTPUT
+        fi
+        
+        # Set the has_findings output
+        echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
+        
+        # Always exit with 0 to prevent job failure
+        exit 0

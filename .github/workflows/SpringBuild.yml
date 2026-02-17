@@ -1,0 +1,20 @@
+name: Springboot Build Workflow
+run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
+
+on:
+  workflow_call
+
+jobs:
+  Build:
+    name: Running SAST [BearerCLI]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Maven Install requirements
+        run: mvn clean install
