@@ -76,65 +76,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Bearer SAST
-        uses: bearer/bearer-action@v2
-        continue-on-error: true
-        with:
-          scanner: sast
-          quiet: true
-          format: json
-          output: SAST-results.json
-          
-      - name: Encrypt and Output SAST results
-        id: sast-output
-        if: always()
-        run: |
-          HAS_FINDINGS="false"
-          
-          if [ -f "SAST-results.json" ]; then
-            # Check if there are any findings in the SAST results
-            FINDINGS_COUNT=$(jq '[.findings // []] | length' SAST-results.json 2>/dev/null || echo "0")
-            
-            if [ "$FINDINGS_COUNT" -gt 0 ]; then
-              HAS_FINDINGS="true"
-              echo "SAST scan found $FINDINGS_COUNT issue(s)"
-            else
-              echo "SAST scan completed with no findings"
-            fi
-            
-            # Generate a random encryption key (256-bit = 32 bytes in hex = 64 chars)
-            ENCRYPTION_KEY=$(openssl rand -hex 32)
-            
-            # Compact the JSON
-            cat SAST-results.json | jq -c . > sast-compact.json
-            
-            # Encrypt the results using AES-256-CBC
-            openssl enc -aes-256-cbc -salt -pbkdf2 -in sast-compact.json -out sast-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
-            
-            # Base64 encode the encrypted output for safe transport
-            ENCRYPTED_DATA=$(base64 -w 0 sast-encrypted.bin)
-            
-            # Output the encrypted data
-            echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-            echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            
-            # Output the encryption key
-            echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
-            
-            # Clean up temporary files
-            rm -f sast-compact.json sast-encrypted.bin SAST-results.json
-          else
-            echo "No SAST results file found"
-            # Output an empty JSON object to prevent downstream errors.
-            echo "outputJson={}" >> $GITHUB_OUTPUT
-            echo "encryptionKey=" >> $GITHUB_OUTPUT
-          fi
-          
-          # Set the has_findings output
-          echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
-          
-          # Always exit with 0 to prevent job failure
-          exit 0
+        uses: ./.github/actions/Security-SAST
 
   sbom_generator:
     name: Running Syft [SBOM generator]
@@ -148,67 +90,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@v0
-        continue-on-error: true
-        id: syft-scan
-        with:
-          format: spdx-json
-          output-file: sbom.json
-          
-      - name: Encrypt and Output SBOM results
-        id: sbom-output
-        if: always()
-        run: |
-          HAS_FINDINGS="false"
-          
-          if [ -f "sbom.json" ]; then
-            # Check if there are any packages in the SBOM
-            PACKAGES_COUNT=$(jq '[.packages // []] | length' sbom.json 2>/dev/null || echo "0")
-            
-            # SBOM generation is informational, so we typically don't fail on it
-            # But we can check if the SBOM has content
-            if [ "$PACKAGES_COUNT" -gt 0 ]; then
-              echo "SBOM generated successfully with $PACKAGES_COUNT package(s)"
-            else
-              echo "SBOM generated but no packages found"
-            fi
-            
-            # For SBOM, we generally don't set has_findings to true unless there's an error
-            # SBOM is informational rather than a security finding
-            
-            # Generate a random encryption key
-            ENCRYPTION_KEY=$(openssl rand -hex 32)
-            
-            # Compact the JSON
-            cat sbom.json | jq -c . > sbom-compact.json
-            
-            # Encrypt the results using AES-256-CBC
-            openssl enc -aes-256-cbc -salt -pbkdf2 -in sbom-compact.json -out sbom-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
-            
-            # Base64 encode the encrypted output
-            ENCRYPTED_DATA=$(base64 -w 0 sbom-encrypted.bin)
-            
-            # Output the encrypted data
-            echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-            echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            
-            # Output the encryption key
-            echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
-            
-            # Clean up temporary files
-            rm -f sbom-compact.json sbom-encrypted.bin sbom.json
-          else
-            echo "No SBOM results file found"
-            echo "outputJson={}" >> $GITHUB_OUTPUT
-            echo "encryptionKey=" >> $GITHUB_OUTPUT
-          fi
-          
-          # Set the has_findings output
-          echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
-          
-          # Always exit with 0
-          exit 0
+        uses: ./.github/actions/Security-SBOM
 
   secret_detection:
     name: Running Truffle-Hog
@@ -221,65 +103,8 @@ jobs:
       - name:  Checkout code
         uses: actions/checkout@v4
         
-      - name: Install and run TruffleHog
-        id: truffleHog-scan
-        continue-on-error: true
-        run: |
-          # Install TruffleHog
-          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
-          # Run scan on the local filesystem, output JSON, suppress logs, exclude .git folder
-          trufflehog filesystem ./ --json --log-level=-1 -x ./.git >> secrets-result.json || true
-          
-      - name: Encrypt and Output Secret results
-        id: secrets-output
-        if: always()
-        run: |
-          HAS_FINDINGS="false"
-          
-          if [ -f "secrets-result.json" ]; then
-            # Check if the file has any content (TruffleHog outputs one JSON object per line)
-            FINDINGS_COUNT=$(wc -l < secrets-result.json 2>/dev/null || echo "0")
-            
-            if [ "$FINDINGS_COUNT" -gt 0 ]; then
-              HAS_FINDINGS="true"
-              echo "Secret detection found $FINDINGS_COUNT potential secret(s)"
-            else
-              echo "Secret detection completed with no findings"
-            fi
-            
-            # Generate a random encryption key
-            ENCRYPTION_KEY=$(openssl rand -hex 32)
-            
-            # Compact the JSON
-            cat secrets-result.json | jq -c . > secrets-compact.json
-            
-            # Encrypt the results using AES-256-CBC
-            openssl enc -aes-256-cbc -salt -pbkdf2 -in secrets-compact.json -out secrets-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
-            
-            # Base64 encode the encrypted output
-            ENCRYPTED_DATA=$(base64 -w 0 secrets-encrypted.bin)
-            
-            # Output the encrypted data
-            echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-            echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            
-            # Output the encryption key
-            echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
-            
-            # Clean up temporary files
-            rm -f secrets-compact.json secrets-encrypted.bin secrets-result.json
-          else
-            echo "No secret detection results file found"
-            echo "outputJson={}" >> $GITHUB_OUTPUT
-            echo "encryptionKey=" >> $GITHUB_OUTPUT
-          fi
-          
-          # Set the has_findings output
-          echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
-          
-          # Always exit with 0
-          exit 0
+      - name: Generate SBOM with Syft
+        uses: ./.github/actions/Security-Secret_Detection
 
   sca:
     name: Running Grype [SCA]
@@ -293,66 +118,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Run Grype (Anchore Scan)
-        uses: anchore/scan-action@v6
-        continue-on-error: true
-        id: grype-scan
-        with:
-          path: "."
-          only-fixed: true
-          severity-cutoff: high
-          output-file: sca-results.json
-          output-format: json
-          
-      - name: Encrypt and Output SCA results
-        id: sca-output
-        if: always()
-        run: |
-          HAS_FINDINGS="false"
-          
-          if [ -f "sca-results.json" ]; then
-            # Check if there are any vulnerabilities in the SCA results
-            VULNERABILITIES_COUNT=$(jq '[.matches // []] | length' sca-results.json 2>/dev/null || echo "0")
-            
-            if [ "$VULNERABILITIES_COUNT" -gt 0 ]; then
-              HAS_FINDINGS="true"
-              echo "SCA scan found $VULNERABILITIES_COUNT vulnerabilitie(s)"
-            else
-              echo "SCA scan completed with no vulnerabilities found"
-            fi
-            
-            # Generate a random encryption key
-            ENCRYPTION_KEY=$(openssl rand -hex 32)
-            
-            # Compact the JSON
-            cat sca-results.json | jq -c . > sca-compact.json
-            
-            # Encrypt the results using AES-256-CBC
-            openssl enc -aes-256-cbc -salt -pbkdf2 -in sca-compact.json -out sca-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
-            
-            # Base64 encode the encrypted output
-            ENCRYPTED_DATA=$(base64 -w 0 sca-encrypted.bin)
-            
-            # Output the encrypted data
-            echo "outputJson<<EOF" >> $GITHUB_OUTPUT
-            echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            
-            # Output the encryption key
-            echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
-            
-            # Clean up temporary files
-            rm -f sca-compact.json sca-encrypted.bin sca-results.json
-          else
-            echo "No SCA results file found"
-            echo "outputJson={}" >> $GITHUB_OUTPUT
-            echo "encryptionKey=" >> $GITHUB_OUTPUT
-          fi
-          
-          # Set the has_findings output
-          echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
-          
-          # Always exit with 0
-          exit 0
+        uses: ./.github/actions/Security-SCA
 
   PublishOutput:
     name: Publish Security Reports
@@ -360,113 +126,19 @@ jobs:
     needs: [sast, sbom_generator, secret_detection, sca]
     if: always()
     steps:
-      - name: Setup Git User
-        run: |
-          git config --global user.name "automation-bot"
-          git config --global user.email "automation-bot@example.com"
-
-      - name: 🔗 Clone the reports repo (using PAT)
-        id: clone
-        env:
-          REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
-        run: |
-          REPO_FULL="${{ inputs.repo_link }}"
-          TARGET_DIR="${RUNNER_TEMP}/reports-repo"
-          GIT_CLONE_URL="https://x-access-token:${REPORTS_REPO_PAT}@github.com/${REPO_FULL}.git"
-          
-          # Only clone if REPORTS_REPO_PAT is provided
-          if [ -z "${REPORTS_REPO_PAT}" ]; then
-            echo "REPORTS_REPO_PAT secret is not set. Skipping clone."
-            exit 0
-          fi
-
-          echo "Cloning reports repo into $TARGET_DIR"
-          git clone "${GIT_CLONE_URL}" "${TARGET_DIR}"
-
-      - name: Prepare Reports Folder
-        env:
-          REPO_NAME: ${{ github.event.repository.name }}
-          REPORTS_ROOT: ${{ runner.temp }}/reports-repo
-        if: success() && steps.clone.outcome == 'success'
-        run: |
-          REPO_FOLDER="$REPORTS_ROOT/$REPO_NAME"
-          echo "Creating reports folder: $REPO_FOLDER"
-          mkdir -p "$REPO_FOLDER"
-
-      - name: Decrypt and Write Reports
-        env:
-          SAST_REPORT: ${{ needs.sast.outputs.output_json }}
-          SAST_KEY: ${{ needs.sast.outputs.encryption_key }}
-          SBOM_REPORT: ${{ needs.sbom_generator.outputs.output_json }}
-          SBOM_KEY: ${{ needs.sbom_generator.outputs.encryption_key }}
-          SECRET_REPORT: ${{ needs.secret_detection.outputs.output_json }}
-          SECRET_KEY: ${{ needs.secret_detection.outputs.encryption_key }}
-          SCA_REPORT: ${{ needs.sca.outputs.output_json }}
-          SCA_KEY: ${{ needs.sca.outputs.encryption_key }}
-          REPO_NAME: ${{ github.event.repository.name }}
-          REPORTS_ROOT: ${{ runner.temp }}/reports-repo
-        if: success() && steps.clone.outcome == 'success'
-        run: |
-          REPO_FOLDER="$REPORTS_ROOT/$REPO_NAME"
-          echo "Writing and decrypting reports to $REPO_FOLDER"
-          
-          # Function to decrypt data
-          decrypt_report() {
-            local ENCRYPTED_DATA="$1"
-            local KEY="$2"
-            local OUTPUT_FILE="$3"
-            
-            if [ -n "$KEY" ] && [ "$ENCRYPTED_DATA" != "{}" ]; then
-              echo "$ENCRYPTED_DATA" | base64 -d > "${OUTPUT_FILE}.encrypted"
-              openssl enc -aes-256-cbc -d -pbkdf2 -in "${OUTPUT_FILE}.encrypted" -out "$OUTPUT_FILE" -pass pass:"$KEY"
-              rm -f "${OUTPUT_FILE}.encrypted"
-            else
-              echo "$ENCRYPTED_DATA" > "$OUTPUT_FILE"
-            fi
-          }
-          
-          # Decrypt and write SAST results
-          decrypt_report "$SAST_REPORT" "$SAST_KEY" "$REPO_FOLDER/sast-results.json"
-          
-          # Decrypt and write SBOM results
-          decrypt_report "$SBOM_REPORT" "$SBOM_KEY" "$REPO_FOLDER/sbom-results.json"
-          
-          # Decrypt and write Secret Detection results
-          decrypt_report "$SECRET_REPORT" "$SECRET_KEY" "$REPO_FOLDER/secrets-results.json"
-          
-          # Decrypt and write SCA results
-          decrypt_report "$SCA_REPORT" "$SCA_KEY" "$REPO_FOLDER/sca-results.json"
-
-      - name: Commit and Push to Reports Repo
-        env:
-          REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
-        working-directory: ${{ runner.temp }}/reports-repo
-        if: success() && steps.clone.outcome == 'success'
-        run: |
-          git add .
-          if git diff --staged --quiet; then
-            echo "No changes detected. Nothing to commit."
-            exit 0
-          fi
-
-          CHANGED_FILES=$(git diff --staged --name-only | xargs -n1 basename | tr '\n' ', ')
-          CHANGED_FILES="${CHANGED_FILES%, }"
-
-          BRANCH_NAME="${{ github.ref_name }}"
-          COMMIT_MESSAGE="${{ github.event.repository.name }}/${BRANCH_NAME} - Files: $CHANGED_FILES"
-
-          git config user.name "automation-bot"
-          git config user.email "automation-bot@example.com"
-
-          git commit -m "$COMMIT_MESSAGE" || { echo "commit failed or nothing to commit"; exit 0; }
-
-          REPO_FULL="${{ inputs.repo_link }}"
-          AUTH_PUSH_URL="https://x-access-token:${REPORTS_REPO_PAT}@github.com/${REPO_FULL}.git"
-          git remote set-url origin "${AUTH_PUSH_URL}"
-
-          git push origin "HEAD:${BRANCH_NAME}"
-
-          echo "Successfully pushed report changes to the reports repository."
+      - name: Publish the Reports
+        uses: ./.github/actions/Security-Publish_Output
+        with:
+          repo_link: ${{ inputs.repo_link }}
+          reports_repo_pat: ${{ secrets.REPORTS_REPO_PAT }}
+          sast_report: ${{ needs.sast.outputs.output_json }}
+          sast_key: ${{ needs.sast.outputs.encryption_key }}
+          sbom_report: ${{ needs.sbom_generator.outputs.output_json }}
+          sbom_key: ${{ needs.sbom_generator.outputs.encryption_key }}
+          secret_report: ${{ needs.secret_detection.outputs.output_json }}
+          secret_key: ${{ needs.secret_detection.outputs.encryption_key }}
+          sca_report: ${{ needs.sca.outputs.output_json }}
+          sca_key: ${{ needs.sca.outputs.encryption_key }}
 
   pre_build:
     name: Pre-Build Security Check

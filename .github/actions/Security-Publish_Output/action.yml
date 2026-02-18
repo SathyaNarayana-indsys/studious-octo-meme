@@ -3,8 +3,33 @@ name: 'Security Publish Outputs step'
 description: 'Publish the outputs of the security Steps'
 
 inputs:
-  
-
+  repo_link:
+    description: 'Target reports repository (owner/repo)'
+    required: true
+  reports_repo_pat:
+    description: 'PAT token for cloning/pushing to reports repo'
+    required: true
+  sast_report:
+    required: false
+    default: '{}'
+  sast_key:
+    required: false
+  sbom_report:
+    required: false
+    default: '{}'
+  sbom_key:
+    required: false
+  secret_report:
+    required: false
+    default: '{}'
+  secret_key:
+    required: false
+  sca_report:
+    required: false
+    default: '{}'
+  sca_key:
+    required: false
+    
 runs:
   using: 'composite'
   steps:

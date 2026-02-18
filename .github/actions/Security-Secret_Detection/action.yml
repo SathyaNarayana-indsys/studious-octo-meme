@@ -15,8 +15,6 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name:  Checkout code
-      uses: actions/checkout@v4
       
     - name: Install and run TruffleHog
       id: truffleHog-scan

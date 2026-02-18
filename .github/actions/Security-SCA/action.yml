@@ -16,9 +16,6 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name:  Checkout code
-      uses: actions/checkout@v4
-
     - name: Run Grype (Anchore Scan)
       uses: anchore/scan-action@v6
       continue-on-error: true

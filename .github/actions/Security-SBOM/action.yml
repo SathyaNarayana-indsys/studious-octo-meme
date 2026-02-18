@@ -20,8 +20,6 @@ outputs:
     value: ${{ steps.sbom-output.outputs.encryptionKey }}
 
 runs:
-  - name:  Checkout code
-    uses: actions/checkout@v4
     
   - name: Generate SBOM with Syft
     uses: anchore/sbom-action@v0

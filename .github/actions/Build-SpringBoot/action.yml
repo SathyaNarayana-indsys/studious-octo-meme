@@ -1,0 +1,36 @@
+name: 'Build and Package JAR'
+description: 'Builds the Maven project and moves the JAR to the output directory'
+
+inputs:
+  java-version:
+    description: 'Java version to use'
+    required: false
+    default: '17'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ inputs.java-version }}
+        distribution: 'temurin'
+        cache: 'maven'
+        
+    - name: Verify Maven project exists
+      shell: bash
+      run: |
+        if [ ! -f pom.xml ]; then
+          echo "::error::No pom.xml found in the working directory."
+          exit 1
+        fi
+
+    - name: Build with Maven
+      shell: bash
+      run: mvn clean package --no-transfer-progress clean package
+
+    - name: Upload JAR artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: CompiledFile
+        path: target/*.jar
