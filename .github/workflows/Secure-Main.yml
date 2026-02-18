@@ -214,7 +214,7 @@ jobs:
           if [[ -z "$BUILD_SCRIPT" ]] || [[ "$BUILD_SCRIPT" == "NA" ]]; then
             echo "::notice file=custom_build::No BuildScript provided in inputs. Skipping build steps."
             echo "No custom build script was provided."
-            # Exit with success (0) as requested, which is the shell's default for a successful run.
+            # Exit with success (0) as requested,/ which is the shell's default for a successful run.
             exit 0
           fi
           

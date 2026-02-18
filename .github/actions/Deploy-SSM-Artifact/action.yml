@@ -1,0 +1,188 @@
+name: 'Deploy artifact to VM'
+description: 'Pushes Built artifact to the Deployment Directory in AWS EC2 Instance'
+
+inputs:
+  artifactName:
+    required: false
+    type: string
+    default: "CompiledF"
+  runScript:
+    required: false
+    type: string
+  deploymentFolder:
+    required: false
+    type: string
+  executionRequired:
+    required: false
+    type: boolean
+    default: false
+  ServiceLanguage:
+    required: false
+    type: string
+    default: "SpringBoot"
+  environmentName:
+    required: false
+    type: string
+    default: main
+  envRegion:
+    required: false
+    type: string
+    default: "ap-south-1"
+
+### Secrets as inputs ###
+  AWS_ACCESS_KEY_ID:
+    required: false
+    type: string
+  AWS_SECRET_ACCESS_KEY:
+    required: false
+    type: string
+  INSTANCE_ID:
+    required: false
+    type: string
+  SSH_PRIVATE_KEY: #the cert data that is
+    required: false
+    type: string
+  INSTANCE_USER:
+    required: false
+    type: string
+
+    
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check AWS CLI version
+      if: inputs.envType == 'AWS'
+      shell: bash
+      run: aws --version
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v5.1.1
+      with:
+        aws-access-key-id: ${{ inputs.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ inputs.envRegion }}
+        output-credentials: true
+
+    - name: Install AWS CLI Session Manager plugin
+      shell: bash
+      run: |
+        curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
+        sudo dpkg -i session-manager-plugin.deb
+
+    - name: Check for Deployment Key (one-time check)
+      shell: bash
+      run: |
+        COMMAND_ID=$(aws ssm send-command \
+          --instance-ids "${{ inputs.INSTANCE_ID }}" \
+          --document-name "AWS-RunShellScript" \
+          --parameters 'commands=[
+            "if [ ! -f /home/${{ inputs.INSTANCE_USER }}/.ssh/github_deploy ]; then",
+            "  echo \"Deploy key not found. Please set up manually. by running [ssh-keygen -t ed25519 -C 'deployment-key' -f /home/${{ inputs.INSTANCE_USER }}/.ssh/github_deploy] \"",
+            "  echo \"and then go to GitHub: Repository Settings → Deploy Keys → Add deploy key and add the key there\"",
+            "  exit 1",
+            "else",
+            "  eval `ssh-agent -s`",
+            "  ssh-add /home/${{ inputs.INSTANCE_USER }}/.ssh/github_deploy",
+            "fi",
+          ]'\
+          --query 'Command.CommandId' \
+          --output text
+        )
+        aws ssm wait command-executed \
+          --command-id "$COMMAND_ID" \
+          --instance-id "${{ inputs.INSTANCE_ID }}"
+
+        STATUS=$(aws ssm get-command-invocation \
+          --command-id "$COMMAND_ID" \
+          --instance-id "${{ inputs.INSTANCE_ID }}" \
+          --query 'Status' \
+          --output text)
+        STATUS_OUTPUT=$(aws ssm get-command-invocation \
+          --command-id "$COMMAND_ID" \
+          --instance-id "${{ inputs.INSTANCE_ID }}" \
+          --query 'StandardOutputContent' \
+          --output text)
+        STATUS_DETAILS=$(aws ssm get-command-invocation \
+          --command-id "$COMMAND_ID" \
+          --instance-id "${{ inputs.INSTANCE_ID }}" \
+          --query 'StatusDetails' \
+          --output text)
+
+        if [ "$STATUS" != "Success" ]; then
+          echo "::error::Deploy key not configured on VM. Please run setup first."
+          echo "::error::StatusDetails - $STATUS_DETAILS"
+          echo "::error::StatusOutput - $STATUS_OUTPUT"
+          exit 1
+        fi
+    
+    - name: Configure SSH
+      shell: bash
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ inputs.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        cat >> ~/.ssh/config << EOF
+        Host ${{ inputs.INSTANCE_ID }}
+          ProxyCommand sh -c "aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'"
+          IdentityFile ~/.ssh/id_rsa
+          StrictHostKeyChecking no
+          User ${{ inputs.INSTANCE_USER }}
+        EOF
+        chmod 600 ~/.ssh/config
+
+    - name: Download artifact(s?)
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.artifactName }}
+        path: ./artifact
+    
+    - name: Push Artifact via SCP over session Manager 
+      shell: bash
+      run: |
+          scp -r ./artifact/* ${{ inputs.INSTANCE_USER }}@${{ inputs.INSTANCE_ID }}:${{ inputs.deploymentFolder }}/
+    - name: SpringBoot Execution [If required]
+      if: ${{ inputs.executionRequired }} == "True" && (${{ inputs.ServiceLanguage }} == "SpringBoot" || ${{ inputs.ServiceLanguage }} == "Java") 
+      shell: bash
+      run: |
+        COMMAND_ID=$(aws ssm send-command \
+          --instance-ids "${{ inputs.INSTANCE_ID }}" \
+          --document-name "AWS-RunShellScript" \
+          --parameters 'commands=[
+              "cd ${{ inputs.deploymentFolder }}",
+              "pkill -f \"java -jar\" || true",
+              "nohup java -jar ${{ inputs.deploymentFolder }}/*.jar > app.log 2>&1 &",
+              "sleep 5",
+              "pgrep -f \"java -jar\" || (echo \"JAR failed to start, check app.log\" && exit 1)"
+            ]'\
+          --query 'Command.CommandId' \
+          --output text
+        )
+        aws ssm wait command-executed \
+          --command-id "$COMMAND_ID" \
+          --instance-id "${{ inputs.INSTANCE_ID }}"
+
+        STATUS=$(aws ssm get-command-invocation \
+          --command-id "$COMMAND_ID" \
+          --instance-id "${{ inputs.INSTANCE_ID }}" \
+          --query 'Status' \
+          --output text)
+        STATUS_OUTPUT=$(aws ssm get-command-invocation \
+          --command-id "$COMMAND_ID" \
+          --instance-id "${{ inputs.INSTANCE_ID }}" \
+          --query 'StandardOutputContent' \
+          --output text)
+        STATUS_DETAILS=$(aws ssm get-command-invocation \
+          --command-id "$COMMAND_ID" \
+          --instance-id "${{ inputs.INSTANCE_ID }}" \
+          --query 'StatusDetails' \
+          --output text)
+
+        if [ "$STATUS" != "Success" ]; then
+          echo "::error::Deploy key not configured on VM. Please run setup first."
+          echo "::error::StatusDetails - $STATUS_DETAILS"
+          echo "::error::StatusOutput - $STATUS_OUTPUT"
+          exit 1
+        fi
