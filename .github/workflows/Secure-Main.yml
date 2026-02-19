@@ -231,28 +231,28 @@ jobs:
           chmod +x "$BUILD_SCRIPT"
           ./"$BUILD_SCRIPT"
 
-  vm_deploy:
-    name: VM Deployment Process
-    needs: [build]
-    if: |
-      always() &&
-      needs.build.result == 'success' &&
-      !inputs.DryRun && 
-      (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'server')
-    uses: ./.github/workflows/VM-Deployment.yml
-    with:
-      runScript: ${{ inputs.runScript }}
-      deploymentFolder: ${{ inputs.deploymentFolder }}
-      executionRequired: ${{ inputs.executionRequired }}
-      environmentName: ${{ inputs.environmentName }}
-    secrets: inherit
+  # vm_deploy:
+  #   name: VM Deployment Process
+  #   needs: [build]
+  #   if: |
+  #     always() &&
+  #     needs.build.result == 'success' &&
+  #     !inputs.DryRun && 
+  #     (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'server')
+  #   uses: ./.github/workflows/VM-Deployment.yml
+  #   with:
+  #     runScript: ${{ inputs.runScript }}
+  #     deploymentFolder: ${{ inputs.deploymentFolder }}
+  #     executionRequired: ${{ inputs.executionRequired }}
+  #     environmentName: ${{ inputs.environmentName }}
+  #   secrets: inherit
 
-  container_deploy:
-    name: Container Deployment Process
-    needs: [build]
-    if: |
-      always() &&
-      needs.build.result == 'success' &&
-      !inputs.DryRun && 
-      (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container' || inputs.deployment_type == 'microservice')
-    uses: ./.github/workflows/Container-Deployment.yml
+  # container_deploy:
+  #   name: Container Deployment Process
+  #   needs: [build]
+  #   if: |
+  #     always() &&
+  #     needs.build.result == 'success' &&
+  #     !inputs.DryRun && 
+  #     (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container' || inputs.deployment_type == 'microservice')
+  #   uses: ./.github/workflows/Container-Deployment.yml

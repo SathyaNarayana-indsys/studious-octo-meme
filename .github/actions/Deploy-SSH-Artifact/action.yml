@@ -1,0 +1,52 @@
+name: 'Deploy artifact to VM'
+description: 'Pushes Built artifact to the Deployment Directory in AWS EC2 Instance'
+
+inputs:
+  artifactName:
+    required: false
+    type: string
+    default: "CompiledF"
+  runScript:
+    required: false
+    type: string
+  deploymentFolder:
+    required: false
+    type: string
+  executionRequired:
+    required: false
+    type: boolean
+    default: false
+
+### Secrets as inputs ###
+  SSH_HOST:
+    required: false
+    type: string
+  SSH_PRIVATE_KEY: #the cert data that is
+    required: false
+    type: string
+  SSH_USER:
+    required: false
+    type: string
+
+    
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up SSH Key
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    
+    - name: Deploy
+      run: |
+        rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx ./ \
+          ${{ secrets.USER }}@${{ secrets.HOST }}:${{ inputs.deploymentFolder }}
+    
+    - name: Execute script on VM
+      if: ${{ inputs.executionRequired }}
+      run: |
+        ssh ${{ secrets.USER }}@${{ secrets.HOST }} \
+          "chmod +x ${{ inputs.deploymentFolder }}/${{ inputs.runScript }} && /bin/bash ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}"
