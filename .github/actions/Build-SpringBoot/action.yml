@@ -7,6 +7,11 @@ inputs:
     required: false
     default: '17'
 
+outputs:
+  artifact_name:
+    description: 'The name of the uploaded artifact'
+    value: ${{ steps.set-artifact-name.outputs.artifact_name }}
+
 runs:
   using: 'composite'
   steps:
@@ -27,8 +32,13 @@ runs:
 
     - name: Build with Maven
       shell: bash
-      run: mvn clean package --no-transfer-progress clean package
-
+      run: mvn clean package --no-transfer-progress
+    
+    - name: Set artifact name output
+      id: set-artifact-name
+      shell: bash
+      run: echo "artifact_name=${{ inputs.artifactName }}" >> $GITHUB_OUTPUT
+    
     - name: Upload JAR artifact
       uses: actions/upload-artifact@v4
       with:

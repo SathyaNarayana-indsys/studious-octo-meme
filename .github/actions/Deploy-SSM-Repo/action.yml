@@ -2,10 +2,6 @@ name: 'Deploy artifact to VM'
 description: 'Syncs the repo to the Deployment Directory in AWS EC2 Instance'
 
 inputs:
-  artifactName:
-    required: false
-    type: string
-    default: "CompiledF"
   runScript:
     required: false
     type: string

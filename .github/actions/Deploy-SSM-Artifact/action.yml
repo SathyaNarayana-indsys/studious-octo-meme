@@ -4,47 +4,35 @@ description: 'Pushes Built artifact to the Deployment Directory in AWS EC2 Insta
 inputs:
   artifactName:
     required: false
-    type: string
     default: "CompiledF"
   runScript:
     required: false
-    type: string
   deploymentFolder:
     required: false
-    type: string
   executionRequired:
     required: false
-    type: boolean
     default: false
   ServiceLanguage:
     required: false
-    type: string
     default: "SpringBoot"
   environmentName:
     required: false
-    type: string
     default: main
   envRegion:
     required: false
-    type: string
     default: "ap-south-1"
 
 ### Secrets as inputs ###
   AWS_ACCESS_KEY_ID:
     required: false
-    type: string
   AWS_SECRET_ACCESS_KEY:
     required: false
-    type: string
   INSTANCE_ID:
     required: false
-    type: string
   SSH_PRIVATE_KEY: #the cert data that is
     required: false
-    type: string
   INSTANCE_USER:
     required: false
-    type: string
 
     
 runs:
@@ -54,7 +42,6 @@ runs:
       uses: actions/checkout@v4
 
     - name: Check AWS CLI version
-      if: inputs.envType == 'AWS'
       shell: bash
       run: aws --version
 
