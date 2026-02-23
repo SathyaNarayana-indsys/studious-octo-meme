@@ -1,79 +1,80 @@
-name: 'Security Secret Detection Scan'
+name: 'Security SCA Scan'
 
-description: 'Run TruffleHog  security scanning'
+description: 'Run Grype SCA security scanning'
 
 outputs:
   has_findings:
     description: 'Whether security findings were detected'
-    value: ${{ steps.secrets-output.outputs.hasFindings }}
+    value: ${{ steps.sca-output.outputs.hasFindings }}
   output_json: 
     description: 'Encrypted JSON Output of the tool'
-    value: ${{ steps.secrets-output.outputs.outputJson }}
+    value: ${{ steps.sca-output.outputs.outputJson }}
   encryption_key: 
     description: 'Encryption Key to decrypt the output of the tool'
-    value: ${{ steps.secrets-output.outputs.encryptionKey }}
+    value: ${{ steps.sca-output.outputs.encryptionKey }}
+
 run:
   using: 'composite'
   steps:
-      
-    - name: Install and run TruffleHog
-      id: truffleHog-scan
+    - name: Run Grype (Anchore Scan)
+      uses: anchore/scan-action@v6
       continue-on-error: true
-      shell: bash
-      run: |
-        # Install TruffleHog
-        curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
-        # Run scan on the local filesystem, output JSON, suppress logs, exclude .git folder
-        trufflehog filesystem ./ --json --log-level=-1 -x ./.git >> secrets-result.json || true
-        
-    - name: Encrypt and Output Secret results
-      id: secrets-output
+      id: grype-scan
+      with:
+        path: "."
+        only-fixed: true
+        severity-cutoff: high
+        output-file: sca-results.json
+        output-format: json
+
+    - name: Encrypt and Output SCA results
+      id: sca-output
       if: always()
       shell: bash
       run: |
         HAS_FINDINGS="false"
-        
-        if [ -f "secrets-result.json" ]; then
-          # Check if the file has any content (TruffleHog outputs one JSON object per line)
-          FINDINGS_COUNT=$(wc -l < secrets-result.json 2>/dev/null || echo "0")
-          
-          if [ "$FINDINGS_COUNT" -gt 0 ]; then
+
+        if [ -f "sca-results.json" ]; then
+          # Check if there are any vulnerabilities in the SCA results
+          VULNERABILITIES_COUNT=$(jq '[.matches // []] | length' sca-results.json 2>/dev/null || echo "0")
+
+          if [ "$VULNERABILITIES_COUNT" -gt 0 ]; then
             HAS_FINDINGS="true"
-            echo "Secret detection found $FINDINGS_COUNT potential secret(s)"
+            echo "SCA scan found $VULNERABILITIES_COUNT vulnerabilitie(s)"
           else
-            echo "Secret detection completed with no findings"
+            echo "SCA scan completed with no vulnerabilities found"
           fi
-          
+
           # Generate a random encryption key
           ENCRYPTION_KEY=$(openssl rand -hex 32)
-          
+
           # Compact the JSON
-          cat secrets-result.json | jq -c . > secrets-compact.json
-          
+          cat sca-results.json | jq -c . > sca-compact.json
+
           # Encrypt the results using AES-256-CBC
-          openssl enc -aes-256-cbc -salt -pbkdf2 -in secrets-compact.json -out secrets-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
-          
+          openssl enc -aes-256-cbc -salt -pbkdf2 -in sca-compact.json -out sca-encrypted.bin -pass pass:"$ENCRYPTION_KEY"
+
           # Base64 encode the encrypted output
-          ENCRYPTED_DATA=$(base64 -w 0 secrets-encrypted.bin)
-          
+          ENCRYPTED_DATA=$(base64 -w 0 sca-encrypted.bin)
+
           # Output the encrypted data
           echo "outputJson<<EOF" >> $GITHUB_OUTPUT
           echo "$ENCRYPTED_DATA" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
+
           # Output the encryption key
           echo "encryptionKey=$ENCRYPTION_KEY" >> $GITHUB_OUTPUT
-          
+
           # Clean up temporary files
-          rm -f secrets-compact.json secrets-encrypted.bin secrets-result.json
+          rm -f sca-compact.json sca-encrypted.bin sca-results.json
         else
-          echo "No secret detection results file found"
+          echo "No SCA results file found"
           echo "outputJson={}" >> $GITHUB_OUTPUT
           echo "encryptionKey=" >> $GITHUB_OUTPUT
         fi
-        
+
         # Set the has_findings output
         echo "hasFindings=$HAS_FINDINGS" >> $GITHUB_OUTPUT
-        
+
         # Always exit with 0
         exit 0

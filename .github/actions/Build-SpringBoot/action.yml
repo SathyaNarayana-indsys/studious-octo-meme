@@ -37,7 +37,7 @@ run:
     - name: Set artifact name output
       id: set-artifact-name
       shell: bash
-      run: echo "artifact_name=${{ inputs.artifactName }}" >> $GITHUB_OUTPUT
+      run: echo "artifact_name=CompiledF" >> $GITHUB_OUTPUT
     
     - name: Upload JAR artifact
       uses: actions/upload-artifact@v4
