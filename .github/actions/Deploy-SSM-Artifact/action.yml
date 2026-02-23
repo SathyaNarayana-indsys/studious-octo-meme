@@ -95,7 +95,7 @@ runs:
           scp -r ./artifact/* ${{ inputs.INSTANCE_USER }}@${{ inputs.INSTANCE_ID }}:${{ inputs.deploymentFolder }}/
     
     - name: SpringBoot Execution [If required]
-      if: inputs.executionRequired == 'True' && (inputs.ServiceLanguage == 'SpringBoot' || inputs.ServiceLanguage == 'Java') && inputs.executionType == "Command"
+      if: inputs.executionRequired == 'True' && (inputs.ServiceLanguage == 'SpringBoot' || inputs.ServiceLanguage == 'Java') && inputs.executionType == 'Command'
       shell: bash
       run: |
         COMMAND_ID=$(aws ssm send-command \
