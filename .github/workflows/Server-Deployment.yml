@@ -1,4 +1,4 @@
-name: Security Pipeline
+name: Secure AWS VM Deployment Pipeline
 run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
 
 # This workflow is designed to be called by another workflow.
@@ -8,7 +8,7 @@ on:
       break_on_failure:
         description: 'Set to true for normal flow (fails on security issues) or false for emergency deployment (always proceeds).'
         required: false
-        type: boolean
+        type: string
         default: true
       serviceVersion:
         description: 'Optional service version tag.'
@@ -20,15 +20,6 @@ on:
         required: false
         type: string
         default: ${{ vars.REPO_LINK }}
-      deployment_type:
-        description: 'Deployment target type (e.g., VM or Container).'
-        required: false
-        type: string
-        default: VM
-      runScript:
-        description: 'In case of a VM deployment, the script to be executed on the VM.'
-        required: false
-        type: string
       deploymentFolder:
         description: 'The target deployment folder for VM deployments.'
         required: false
@@ -44,25 +35,25 @@ on:
       DryRun:
         description: 'If true, skips deployment steps.'
         required: false
-        type: boolean
-        default: false
+        type: string
+        default: "false"
       executionRequired:
         required: false
-        type: boolean
-        default: false
-      environmentName: 
-        required: false
         type: string
-        default: main
-      envType:
-        required: false
-        type: string
-        default: "AWS"
+        default: "false"
       repoUser:
         required: false
         type: string
         default: "ssm-user"
-        
+      runScript:                          
+        required: false
+        type: string
+      envRegion:                          
+        required: false
+        type: string
+        default: "ap-south-1"
+
+
 jobs:
   sast:
     name: Running SAST [BearerCLI]
@@ -126,6 +117,8 @@ jobs:
     needs: [sast, sbom_generator, secret_detection, sca]
     if: always()
     steps:
+      - name: Checkout code          # ← still missing
+        uses: actions/checkout@v4
       - name: Publish the Reports
         uses: ./.github/actions/Security-Publish_Output
         with:
@@ -140,7 +133,7 @@ jobs:
           sca_report: ${{ needs.sca.outputs.output_json }}
           sca_key: ${{ needs.sca.outputs.encryption_key }}
 
-  pre_build:
+  PreBuild:
     name: Pre-Build Security Check
     runs-on: ubuntu-latest
     needs: [sast, sbom_generator, secret_detection, sca]
@@ -162,7 +155,7 @@ jobs:
             
             echo "Security Scan Results:"
             echo "  SAST findings: $SAST_FINDINGS"
-            echo "  SBOM findings: $SBOM_FINDINGS"
+            echo "  SBOM findings: informational"
             echo "  Secret Detection findings: $SECRET_FINDINGS"
             echo "  SCA findings: $SCA_FINDINGS"
             
@@ -193,49 +186,63 @@ jobs:
             echo "BREAK_ON_FAILURE_FLAG is false: proceeding regardless of security scan findings."
             echo "proceed=true" >> $GITHUB_OUTPUT
           fi
-
-  build:
+  Build:
     name: Run Custom Build Script (if it exists)
     runs-on: ubuntu-latest
-    needs: pre_build
+    needs: PreBuild
     if: |
       always() && 
-      needs.pre_build.result == 'success'
+      needs.PreBuild.result == 'success' 
+    outputs:
+      artifact_name: ${{ steps.springboot_build.outputs.artifact_name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         
       - name: SpringBoot Build 
-        if: ${{ inputs.BuildLanguage }} == 'SpringBoot' && ${{ inputs.BuildRequried }} == 'True'
+        id: springboot_build
+        if: inputs.BuildLanguage == 'SpringBoot' && inputs.BuildRequried == 'True'
         uses: ./.github/actions/Build-SpringBoot
-
-  AWSVMDeploy:
-    name: Deploy to a AWS VM
+      
+      - name: No Build
+        if: inputs.BuildRequried == 'False'
+        shell: bash
+        runs: |
+             echo "Skipping Build"
+  
+  Deploy:
+    name: Deploy Artifact/Repo
     runs-on: ubuntu-latest
-    needs: [build]
-    
-  # vm_deploy:
-  #   name: VM Deployment Process
-  #   needs: [build]
-  #   if: |
-  #     always() &&
-  #     needs.build.result == 'success' &&
-  #     !inputs.DryRun && 
-  #     (inputs.deployment_type == 'VM' || inputs.deployment_type == 'vm' || inputs.deployment_type == 'Server' || inputs.deployment_type == 'server')
-  #   uses: ./.github/workflows/VM-Deployment.yml
-  #   with:
-  #     runScript: ${{ inputs.runScript }}
-  #     deploymentFolder: ${{ inputs.deploymentFolder }}
-  #     executionRequired: ${{ inputs.executionRequired }}
-  #     environmentName: ${{ inputs.environmentName }}
-  #   secrets: inherit
+    needs: Build
+    if: inputs.DryRun!="True"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Artifact Deploy
+        if: inputs.BuildRequried == 'True'
+        uses: ./.github/actions/Deploy-SSH-Artifact
+        with:
+          artifactName: ${{ needs.Build.outputs.artifact_name }}
+          ServiceLanguage: ${{ inputs.BuildLanguage }}
+          runScript: ${{ inputs.runScript }}
+          deploymentFolder: ${{ inputs.deploymentFolder }}
+          executionRequired: ${{ inputs.executionRequired }}
 
-  # container_deploy:
-  #   name: Container Deployment Process
-  #   needs: [build]
-  #   if: |
-  #     always() &&
-  #     needs.build.result == 'success' &&
-  #     !inputs.DryRun && 
-  #     (inputs.deployment_type == 'Container' || inputs.deployment_type == 'container' || inputs.deployment_type == 'microservice')
-  #   uses: ./.github/workflows/Container-Deployment.yml
+        ### Secrets as inputs ###
+          SSH_HOST: ${{ secrets.INSTANCE_ID }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.INSTANCE_USER }}
+      
+      - name: Repo Deploy
+        if: inputs.BuildRequried == 'False'
+        uses: ./.github/actions/Deploy-SSH-Repo
+        with:
+          runScript: ${{ inputs.runScript }}
+          deploymentFolder: ${{ inputs.deploymentFolder }}
+          executionRequired: ${{ inputs.executionRequired }}
+
+        ### Secrets as inputs ###
+          SSH_HOST: ${{ secrets.INSTANCE_ID }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.INSTANCE_USER }}

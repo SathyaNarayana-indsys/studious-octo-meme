@@ -71,14 +71,14 @@ runs:
 
       - name: Decrypt and Write Reports
         env:
-          SAST_REPORT: ${{ needs.sast.outputs.output_json }}
-          SAST_KEY: ${{ needs.sast.outputs.encryption_key }}
-          SBOM_REPORT: ${{ needs.sbom_generator.outputs.output_json }}
-          SBOM_KEY: ${{ needs.sbom_generator.outputs.encryption_key }}
-          SECRET_REPORT: ${{ needs.secret_detection.outputs.output_json }}
-          SECRET_KEY: ${{ needs.secret_detection.outputs.encryption_key }}
-          SCA_REPORT: ${{ needs.sca.outputs.output_json }}
-          SCA_KEY: ${{ needs.sca.outputs.encryption_key }}
+          SAST_REPORT: ${{ inputs.sast_report }}
+          SAST_KEY: ${{ inputs.sast_key }}
+          SBOM_REPORT: ${{ inputs.sbom_report }}
+          SBOM_KEY: ${{ inputs.sbom_key }}
+          SECRET_REPORT: ${{ inputs.secret_report }}
+          SECRET_KEY: ${{ inputs.secrets }}
+          SCA_REPORT: ${{ inputs.sca_report }}
+          SCA_KEY: ${{ inputs.sca_key }}
           REPO_NAME: ${{ github.event.repository.name }}
           REPORTS_ROOT: ${{ runner.temp }}/reports-repo
         if: success() && steps.clone.outcome == 'success'
