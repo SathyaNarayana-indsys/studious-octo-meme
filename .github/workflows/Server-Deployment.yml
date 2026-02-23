@@ -218,7 +218,7 @@ jobs:
     name: Deploy Artifact/Repo
     runs-on: ubuntu-latest
     needs: Build
-    if: if: inputs.DryRun != 'True'
+    if: inputs.DryRun != 'True'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
