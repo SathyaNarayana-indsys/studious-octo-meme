@@ -71,7 +71,7 @@ jobs:
 
       - name: Run Bearer SAST
         id: sast-output
-        uses: ./.github/actions/Security-SAST
+        uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Security-SAST
 
   sbom_generator:
     name: Running Syft [SBOM generator]
@@ -86,7 +86,7 @@ jobs:
         
       - name: Generate SBOM with Syft
         id: sbom-output
-        uses: ./.github/actions/Security-SBOM
+        uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Security-SBOM
 
   secret_detection:
     name: Running Truffle-Hog
@@ -101,7 +101,7 @@ jobs:
         
       - name: Detect Secrets using TruffleHog
         id: secrets-output
-        uses: ./.github/actions/Security-Secret_Detection
+        uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Security-Secret_Detection
 
   sca:
     name: Running Grype [SCA]
@@ -116,7 +116,7 @@ jobs:
         
       - name: Run Grype (Anchore Scan)
         id: sca-output
-        uses: ./.github/actions/Security-SCA
+        uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Security-SCA
 
   PublishOutput:
     name: Publish Security Reports
@@ -127,7 +127,7 @@ jobs:
       - name: Checkout code          
         uses: actions/checkout@v4
       - name: Publish the Reports
-        uses: ./.github/actions/Security-Publish_Output
+        uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Security-Publish_Output
         with:
           repo_link: ${{ inputs.repo_link }}
           reports_repo_pat: ${{ secrets.REPORTS_REPO_PAT }}
@@ -209,7 +209,7 @@ jobs:
       - name: SpringBoot Build 
         id: springboot_build
         if: inputs.BuildLanguage == 'SpringBoot' && inputs.BuildRequried == 'True'
-        uses: ./.github/actions/Build-SpringBoot
+        uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Build-SpringBoot
       
       - name: No Build
         if: inputs.BuildRequried == 'False'
@@ -229,7 +229,7 @@ jobs:
       
       - name: Artifact Deploy
         if: inputs.BuildRequried == 'True'
-        uses: ./.github/actions/Deploy-SSM-Artifact
+        uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Deploy-SSM-Artifact
         with:
           artifactName: ${{ needs.Build.outputs.artifact_name }}
           deploymentFolder: ${{ inputs.deploymentFolder }}
@@ -245,7 +245,7 @@ jobs:
       
       - name: Repo Deploy
         if: inputs.BuildRequried == 'False'
-        uses: ./.github/actions/Deploy-SSM-Repo
+        uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Deploy-SSM-Repo
         with:
           runScript: ${{ inputs.runScript }}
           deploymentFolder: ${{ inputs.deploymentFolder }}
