@@ -19,6 +19,7 @@ run:
     - name: Install and run TruffleHog
       id: truffleHog-scan
       continue-on-error: true
+      shell: bash
       run: |
         # Install TruffleHog
         curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
@@ -28,6 +29,7 @@ run:
     - name: Encrypt and Output Secret results
       id: secrets-output
       if: always()
+      shell: bash
       run: |
         HAS_FINDINGS="false"
         

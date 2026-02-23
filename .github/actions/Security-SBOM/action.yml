@@ -20,7 +20,8 @@ outputs:
     value: ${{ steps.sbom-output.outputs.encryptionKey }}
 
 run:
-    
+  using: 'composite'
+  steps:
   - name: Generate SBOM with Syft
     uses: anchore/sbom-action@v0
     continue-on-error: true

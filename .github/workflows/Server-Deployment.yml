@@ -67,6 +67,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Bearer SAST
+        id: sast-output
         uses: ./.github/actions/Security-SAST
 
   sbom_generator:
@@ -81,6 +82,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Generate SBOM with Syft
+        id: sbom-output
         uses: ./.github/actions/Security-SBOM
 
   secret_detection:
@@ -94,7 +96,8 @@ jobs:
       - name:  Checkout code
         uses: actions/checkout@v4
         
-      - name: Generate SBOM with Syft
+      - name: Detect Secrets using TruffleHog
+        id: secrets-output
         uses: ./.github/actions/Security-Secret_Detection
 
   sca:
@@ -109,6 +112,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Run Grype (Anchore Scan)
+        id: sca-output
         uses: ./.github/actions/Security-SCA
 
   PublishOutput:
@@ -214,7 +218,7 @@ jobs:
     name: Deploy Artifact/Repo
     runs-on: ubuntu-latest
     needs: Build
-    if: inputs.DryRun!="True"
+    if: if: inputs.DryRun != 'True'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

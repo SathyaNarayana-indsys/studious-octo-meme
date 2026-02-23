@@ -96,7 +96,7 @@ jobs:
       - name:  Checkout code
         uses: actions/checkout@v4
         
-      - name: Generate SBOM with Syft
+      - name: Detect Secrets using TruffleHog
         id: secrets-output
         uses: ./.github/actions/Security-Secret_Detection
 
@@ -218,7 +218,7 @@ jobs:
     name: Deploy Artifact/Repo
     runs-on: ubuntu-latest
     needs: Build
-    if: inputs.DryRun!="True"
+    if: if: inputs.DryRun != 'True'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

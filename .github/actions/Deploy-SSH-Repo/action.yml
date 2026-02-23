@@ -34,15 +34,15 @@ run:
     - name: Set up SSH Key
       uses: webfactory/ssh-agent@v0.9.0
       with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        ssh-private-key: ${{ inputs.SSH_PRIVATE_KEY }}
     
     - name: Deploy
       run: |
         rsync -avz --exclude '.git' --chown=github:www-data --chmod=Dg=rwx,Fg=rwx ./ \
-          ${{ secrets.USER }}@${{ secrets.HOST }}:${{ inputs.deploymentFolder }}
+          ${{ inputs.SSH_USER }}@${{ inputs.SSH_HOST }}:${{ inputs.deploymentFolder }}
     
     - name: Execute script on VM
       if: ${{ inputs.executionRequired }}
       run: |
-        ssh ${{ secrets.USER }}@${{ secrets.HOST }} \
+        ssh ${{ inputs.SSH_USER }}@${{ inputs.SSH_HOST }} \
           "chmod +x ${{ inputs.deploymentFolder }}/${{ inputs.runScript }} && /bin/bash ${{ inputs.deploymentFolder }}/${{ inputs.runScript }}"

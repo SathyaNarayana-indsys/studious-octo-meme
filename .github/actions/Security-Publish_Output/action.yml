@@ -116,7 +116,7 @@ run:
 
       - name: Commit and Push to Reports Repo
         env:
-          REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
+          REPORTS_REPO_PAT: ${{ inputs.REPORTS_REPO_PAT }}
         working-directory: ${{ runner.temp }}/reports-repo
         if: success() && steps.clone.outcome == 'success'
         shell: bash
