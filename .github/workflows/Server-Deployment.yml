@@ -52,7 +52,10 @@ on:
         required: false
         type: string
         default: "ap-south-1"
-
+      environment:
+        required: false
+        type: string
+        default: "UAT"
 
 jobs:
   sast:
@@ -218,6 +221,7 @@ jobs:
     name: Deploy Artifact/Repo
     runs-on: ubuntu-latest
     needs: Build
+    environment: ${{ inputs.environment }}
     if: inputs.DryRun != 'True'
     steps:
       - name: Checkout code
