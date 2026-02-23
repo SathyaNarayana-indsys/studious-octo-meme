@@ -44,7 +44,7 @@ inputs:
     required: false
 
     
-run:
+runs:
   using: 'composite'
   steps:
     - name: Checkout code

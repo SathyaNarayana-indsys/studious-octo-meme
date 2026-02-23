@@ -30,7 +30,7 @@ inputs:
   sca_key:
     required: false
     
-run:
+runs:
   using: 'composite'
   steps:
       - name: Setup Git User
