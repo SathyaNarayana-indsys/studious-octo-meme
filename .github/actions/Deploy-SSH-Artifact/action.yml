@@ -21,7 +21,7 @@ inputs:
   SSH_USER:
     required: false
 
-runs:
+run:
   using: 'composite'
   steps:
     - name: Set up SSH Key

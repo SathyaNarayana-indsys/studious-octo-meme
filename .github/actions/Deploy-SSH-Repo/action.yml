@@ -25,7 +25,7 @@ inputs:
     type: string
 
     
-runs:
+run:
   using: 'composite'
   steps:
     - name: Checkout code

@@ -207,7 +207,7 @@ jobs:
       - name: No Build
         if: inputs.BuildRequried == 'False'
         shell: bash
-        runs: |
+        run: |
              echo "Skipping Build"
   
   Deploy:

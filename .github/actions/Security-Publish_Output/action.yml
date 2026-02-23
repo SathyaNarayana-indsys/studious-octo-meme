@@ -30,7 +30,7 @@ inputs:
   sca_key:
     required: false
     
-runs:
+run:
   using: 'composite'
   steps:
       - name: Setup Git User
@@ -42,7 +42,7 @@ runs:
       - name: 🔗 Clone the reports repo (using PAT)
         id: clone
         env:
-          REPORTS_REPO_PAT: ${{ secrets.REPORTS_REPO_PAT }}
+          REPORTS_REPO_PAT: ${{ inputs.REPORTS_REPO_PAT }}
         shell: bash
         run: |
           REPO_FULL="${{ inputs.repo_link }}"
