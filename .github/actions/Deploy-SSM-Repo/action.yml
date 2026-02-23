@@ -97,7 +97,7 @@ runs:
               "else",
               "  eval `ssh-agent -s`",
               "  ssh-add /home/${{ inputs.INSTANCE_USER }}/.ssh/github_deploy",
-              "fi"
+              "fi",
               "ssh-keyscan github.com | sort > /tmp/gh_key && grep -qF \"$(cat /tmp/gh_key)\" /home/${{ inputs.INSTANCE_USER }}/.ssh/known_hosts || cat /tmp/gh_key >> /home/${{ inputs.INSTANCE_USER }}/.ssh/known_hosts",
               "if [ ! -d \"${{ inputs.deploymentFolder }}\" ]; then",
               "  mkdir ${{ inputs.deploymentFolder }} -p",
