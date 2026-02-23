@@ -47,9 +47,6 @@ inputs:
   INSTANCE_ID:
     required: false
     type: string
-  SSH_PRIVATE_KEY: #the cert data that is
-    required: false
-    type: string
   INSTANCE_USER:
     required: false
     type: string
@@ -246,8 +243,10 @@ runs:
               "cd ${{ inputs.deploymentFolder }}",
               "REPO_NAME=$(echo \"${{ github.repository }}\" | awk -F/ '\''{print $2}'\'')",
               "cd $REPO_NAME",
-              "sudo cp ./${{ inputs.ServiceDefFile }} /etc/systemd/system/${{ inputs.ServiceDefFile }}",
-              "sudo chmod +x /etc/systemd/system/${{ inputs.ServiceDefFile }}",
+              "if [ -f \"./${{ inputs.ServiceDefFile }}\" ]; then",
+              " sudo cp ./${{ inputs.ServiceDefFile }} /etc/systemd/system/${{ inputs.ServiceDefFile }}",
+              " sudo chmod +x /etc/systemd/system/${{ inputs.ServiceDefFile }}",
+              "fi",
               "sudo systemctl daemon-reload",
               "sudo systemctl enable ${{ inputs.ServiceName }}",
               "sudo systemctl restart ${{ inputs.ServiceName }}"
