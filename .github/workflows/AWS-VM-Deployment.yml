@@ -28,11 +28,11 @@ on:
         description: 'Is Build Required'
         required: false
         type: string
-      BuildLanguage:
+      serviceLanguage:
         description: 'Which Language build script to execute'
         required: false
         type: string
-      BuildLanguageVersion:
+      serviceLanguageVersion:
         description: 'which version of the language to use'
         required: false
         type: string
@@ -60,6 +60,26 @@ on:
         required: false
         type: string
         default: "UAT"
+      ServiceDefFile:
+        required: false
+        type: string
+        default: ""
+      executionType:
+        required: false
+        type: string
+        default: ""
+      environmentName:
+        required: false
+        type: string
+        default: ""
+      ServiceName:
+        required: false
+        type: string
+        default: ""
+      ServiceLanguage:
+        required: false
+        type: string
+        default: ""
 
 jobs:
   sast:
@@ -212,16 +232,16 @@ jobs:
         
       - name: SpringBoot Build 
         id: springboot_build
-        if: inputs.BuildLanguage == 'SpringBoot' && inputs.BuildRequried == 'True'
+        if: inputs.serviceLanguage == 'SpringBoot' && inputs.BuildRequried == 'True'
         uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Build-SpringBoot@main
 
       - name: Angular Build 
         id: angular_build
-        if: inputs.BuildLanguage == 'Angular' && inputs.BuildRequried == 'True'
+        if: inputs.serviceLanguage == 'Angular' && inputs.BuildRequried == 'True'
         uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Build-Angular@main
         with:
           app-name: ${{ inputs.ServiceName}}
-          Node-version: ${{ inputs.BuildLanguageVersion }}
+          Node-version: ${{ inputs.serviceLanguageVersion }}
       
       - name: No Build
         if: inputs.BuildRequried == 'False'
@@ -246,25 +266,32 @@ jobs:
           artifactName: ${{ needs.Build.outputs.artifact_name }}
           deploymentFolder: ${{ inputs.deploymentFolder }}
           executionRequired: ${{ inputs.executionRequired }}
-          ServiceLanguage: ${{ inputs.BuildLanguage }}
+          executionType: ${{ inputs.executionType }}
           envRegion: ${{ inputs.envRegion }}
+          ServiceLanguage: ${{ inputs.serviceLanguage }}
+          environmentName: ${{ inputs.environmentName }}
+          ServiceDefFile: ${{ inputs.ServiceDefFile }}
+          ServiceName: ${{ inputs.ServiceName }}
         ### Secrets as inputs ###
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           INSTANCE_ID: ${{ secrets.INSTANCE_ID }}
           INSTANCE_USER: ${{ secrets.INSTANCE_USER }}
-      
       - name: Repo Deploy
         if: inputs.BuildRequried == 'False'
         uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Deploy-SSM-Repo@main
         with:
           runScript: ${{ inputs.runScript }}
           deploymentFolder: ${{ inputs.deploymentFolder }}
+          executionType: ${{ inputs.executionType }}
           executionRequired: ${{ inputs.executionRequired }}
-          ServiceLanguage: ${{ inputs.BuildLanguage }}
+          ServiceLanguage: ${{ inputs.serviceLanguage }}
           envRegion: ${{ inputs.envRegion }}
           repoUser: ${{ inputs.repoUser }}
+          ServiceDefFile: ${{ inputs.ServiceDefFile }}
+          ServiceName: ${{ inputs.ServiceName }}
+          environmentName: ${{ inputs.environmentName }}
         ### Secrets as inputs ###
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 

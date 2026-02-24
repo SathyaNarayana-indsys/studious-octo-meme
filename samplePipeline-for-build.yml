@@ -7,18 +7,18 @@ on:
 jobs:
   security_check:
     name: Run Security Pipeline
+    # Ensure this path matches the physical location of the reusable workflow
     uses: SathyaNarayana-indsys/studious-octo-meme/.github/workflows/AWS-VM-Deployment.yml@main
     with:
-      environment: 'main'
-      deployment_type: 'VM'
+      # Mapping the GitHub branch to the 'environment' input
+      environment: ${{ github.ref_name }} 
       BuildRequried: 'True'
-      BuildLanguage: 'SpringBoot'
+      serviceLanguage: 'SpringBoot'
+      serviceLanguageVersion: ''
       deploymentFolder: ${{ vars.DEPLOYMENT_FOLDER }}
-      envType: 'AWS'
-      envRegion: 'ap-south-1'
       executionRequired: 'true'
       runScript: ${{ vars.RUN_SCRIPT }}
-      break_on_failure: "False"      # Uncomment for emergency bypass
-      # DryRun: 'True'               # Uncomment to test without deploying
+      break_on_failure: "False"
+      serviceVersion: ${{ github.sha }}
 
     secrets: inherit

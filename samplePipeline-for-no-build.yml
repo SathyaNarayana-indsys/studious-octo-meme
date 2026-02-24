@@ -1,0 +1,25 @@
+name: Application CI
+
+on:
+  push:
+    branches: [ main, UAT, staging ]
+
+jobs:
+  security_check:
+    name: Run Security Pipeline
+    # Ensure this path matches the physical location of the reusable workflow
+    uses: SathyaNarayana-indsys/studious-octo-meme/.github/workflows/AWS-VM-Deployment.yml@main
+    with:
+      environment: ${{ github.ref_name }} 
+      BuildRequried: 'False'
+      deploymentFolder: ${{ vars.DEPLOYMENT_FOLDER }}
+      executionRequired: 'true'
+      executionType: 'ServiceRestart'
+      ServiceLanguage: 'Python'
+      serviceLanguageVersion: '3.14' #optional Here
+      
+      # runScript: ${{ vars.RUN_SCRIPT }}
+      # break_on_failure: "False"
+      serviceVersion: ${{ github.sha }}
+
+    secrets: inherit

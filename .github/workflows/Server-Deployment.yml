@@ -5,61 +5,78 @@ run-name: Commit - ${{ github.sha }} on ${{ github.ref_name }}
 on:
   workflow_call:
     inputs:
-      break_on_failure:
-        description: 'Set to true for normal flow (fails on security issues) or false for emergency deployment (always proceeds).'
-        required: false
-        type: string
-        default: true
-      serviceVersion:
-        description: 'Optional service version tag.'
-        required: false
-        type: string
-        default: "NA"
-      repo_link:
-        description: 'The target repository link for reports (e.g., owner/repo).'
-        required: false
-        type: string
-        default: ${{ vars.REPO_LINK }}
-      deploymentFolder:
-        description: 'The target deployment folder for VM deployments.'
-        required: false
-        type: string
-      BuildRequried:
-        description: 'Is Build Required'
-        required: false
-        type: string
-      BuildLanguage:
-        description: 'Which Language build script to execute'
-        required: false
-        type: string
-      BuildLanguageVersion:
-        description: 'which version of the language to use'
-        required: false
-        type: string
-      DryRun:
-        description: 'If true, skips deployment steps.'
-        required: false
-        type: string
-        default: "false"
-      executionRequired:
-        required: false
-        type: string
-        default: "false"
-      repoUser:
-        required: false
-        type: string
-        default: "ssm-user"
-      runScript:                          
-        required: false
-        type: string
-      envRegion:                          
-        required: false
-        type: string
-        default: "ap-south-1"
-      environment:
-        required: false
-        type: string
-        default: "UAT"
+    break_on_failure:
+      description: 'Set to true for normal flow (fails on security issues) or false for emergency deployment (always proceeds).'
+      required: false
+      type: string
+      default: "True"
+    serviceVersion:
+      description: 'Optional service version tag.'
+      required: false
+      type: string
+      default: "NA"
+    repo_link:
+      description: 'The target repository link for reports (e.g., owner/repo).'
+      required: false
+      type: string
+      default: ${{ vars.REPO_LINK }}
+    deploymentFolder:
+      description: 'The target deployment folder for VM deployments.'
+      required: false
+      type: string
+    BuildRequried:
+      description: 'Is Build Required'
+      required: false
+      type: string
+    serviceLanguage:
+      description: 'Which Language build script to execute'
+      required: false
+      type: string
+    serviceLanguageVersion:
+      description: 'which version of the language to use'
+      required: false
+      type: string
+    DryRun:
+      description: 'If true, skips deployment steps.'
+      required: false
+      type: string
+      default: "False"
+    executionRequired:
+      required: false
+      type: string
+      default: "false"
+    repoUser:
+      required: false
+      type: string
+      default: "ssm-user"
+    runScript:                          
+      required: false
+      type: string
+    envRegion:                          
+      required: false
+      type: string
+      default: "ap-south-1"
+    environment:
+      required: false
+      type: string
+      default: "UAT"
+    ServiceDefFile:
+      required: false
+      type: string
+      default: ""
+    executionType:
+      required: false
+      type: string
+      default: ""
+    environmentName:
+      required: false
+      type: string
+      default: ""
+    ServiceName:
+      required: false
+      type: string
+      default: ""
+
 
 jobs:
   sast:
@@ -212,16 +229,16 @@ jobs:
         
       - name: SpringBoot Build 
         id: springboot_build
-        if: inputs.BuildLanguage == 'SpringBoot' && inputs.BuildRequried == 'True'
+        if: inputs.serviceLanguage == 'SpringBoot' && inputs.BuildRequried == 'True'
         uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Build-SpringBoot@main
 
       - name: Angular Build 
         id: angular_build
-        if: inputs.BuildLanguage == 'Angular' && inputs.BuildRequried == 'True'
+        if: inputs.serviceLanguage == 'Angular' && inputs.BuildRequried == 'True'
         uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Build-Angular@main
         with:
           app-name: ${{ inputs.ServiceName}}
-          Node-version: ${{ inputs.BuildLanguageVersion }}
+          Node-version: ${{ inputs.serviceLanguageVersion }}
       
       - name: No Build
         if: inputs.BuildRequried == 'False'
@@ -244,10 +261,14 @@ jobs:
         uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Deploy-SSH-Artifact@main
         with:
           artifactName: ${{ needs.Build.outputs.artifact_name }}
-          ServiceLanguage: ${{ inputs.BuildLanguage }}
-          runScript: ${{ inputs.runScript }}
           deploymentFolder: ${{ inputs.deploymentFolder }}
           executionRequired: ${{ inputs.executionRequired }}
+          executionType: ${{ inputs.executionType }}
+          envRegion: ${{ inputs.envRegion }}
+          ServiceLanguage: ${{ inputs.serviceLanguage }}
+          environmentName: ${{ inputs.environmentName }}
+          ServiceDefFile: ${{ inputs.ServiceDefFile }}
+          ServiceName: ${{ inputs.ServiceName }}
 
         ### Secrets as inputs ###
           SSH_HOST: ${{ secrets.INSTANCE_ID }}
@@ -260,7 +281,15 @@ jobs:
         with:
           runScript: ${{ inputs.runScript }}
           deploymentFolder: ${{ inputs.deploymentFolder }}
+          executionType: ${{ inputs.executionType }}
           executionRequired: ${{ inputs.executionRequired }}
+          ServiceLanguage: ${{ inputs.serviceLanguage }}
+          envRegion: ${{ inputs.envRegion }}
+          repoUser: ${{ inputs.repoUser }}
+          ServiceDefFile: ${{ inputs.ServiceDefFile }}
+          ServiceName: ${{ inputs.ServiceName }}
+          ServiceLanguage: ${{ inputs.serviceLanguage }}
+          environmentName: ${{ inputs.environmentName }}
 
         ### Secrets as inputs ###
           SSH_HOST: ${{ secrets.INSTANCE_ID }}
