@@ -283,7 +283,6 @@ jobs:
           deploymentFolder: ${{ inputs.deploymentFolder }}
           executionType: ${{ inputs.executionType }}
           executionRequired: ${{ inputs.executionRequired }}
-          ServiceLanguage: ${{ inputs.serviceLanguage }}
           envRegion: ${{ inputs.envRegion }}
           repoUser: ${{ inputs.repoUser }}
           ServiceDefFile: ${{ inputs.ServiceDefFile }}
