@@ -20,5 +20,8 @@ jobs:
       runScript: ${{ vars.RUN_SCRIPT }}
       break_on_failure: "False"
       serviceVersion: ${{ github.sha }}
+      ScriptExecution: "True"
+      ServiceRestart: "True"
+      ServiceName: ""
 
     secrets: inherit

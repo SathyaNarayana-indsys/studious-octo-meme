@@ -76,7 +76,14 @@ on:
         required: false
         type: string
         default: ""
-
+      ScriptExecution:
+        required: false
+        type: string
+        default: "False"
+      ServiceRestart:
+        required: false
+        type: string
+        default: "False"
 jobs:
   sast:
     name: Running SAST [BearerCLI]
@@ -268,6 +275,8 @@ jobs:
           environmentName: ${{ inputs.environmentName }}
           ServiceDefFile: ${{ inputs.ServiceDefFile }}
           ServiceName: ${{ inputs.ServiceName }}
+          ServiceRestart: ${{ inputs.ServiceRestart }}
+          ScriptExecution: ${{ inputs.ScriptExecution }}
         ### Secrets as inputs ###
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 

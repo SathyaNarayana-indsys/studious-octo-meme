@@ -19,15 +19,20 @@ inputs:
   envRegion:
     required: false
     default: "ap-south-1"
-  executionType:
-    required: false
-    default: "Script"
   ServiceName:
     required: false
     default: ""
   ServiceDefFile:
     required: false
     default: ""
+  ServiceRestart:
+    required: false
+    type: string
+    default: "False"
+  ScriptExecution:
+    required: false
+    type: string
+    default: "False"
 
 ### Secrets as inputs ###
   AWS_ACCESS_KEY_ID:

@@ -18,8 +18,10 @@ jobs:
       ServiceLanguage: 'Python'
       ServiceDefFile: ''
       serviceLanguageVersion: '3.14' #optional Here
-      
-      # runScript: ${{ vars.RUN_SCRIPT }}
+      ScriptExecution: "True"
+      ServiceRestart: "True"
+      ServiceName: ""
+      runScript: ""
       # break_on_failure: "False"
       serviceVersion: ${{ github.sha }}
 
