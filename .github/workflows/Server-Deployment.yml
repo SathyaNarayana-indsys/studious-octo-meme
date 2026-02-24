@@ -32,6 +32,10 @@ on:
         description: 'Which Language build script to execute'
         required: false
         type: string
+      BuildLanguageVersion:
+        description: 'which version of the language to use'
+        required: false
+        type: string
       DryRun:
         description: 'If true, skips deployment steps.'
         required: false
@@ -210,6 +214,14 @@ jobs:
         id: springboot_build
         if: inputs.BuildLanguage == 'SpringBoot' && inputs.BuildRequried == 'True'
         uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Build-SpringBoot@main
+
+      - name: Angular Build 
+        id: angular_build
+        if: inputs.BuildLanguage == 'Angular' && inputs.BuildRequried == 'True'
+        uses: SathyaNarayana-indsys/studious-octo-meme/.github/actions/Build-Angular@main
+        with:
+          app-name: ${{ inputs.ServiceName}}
+          Node-version: ${{ inputs.BuildLanguageVersion }}
       
       - name: No Build
         if: inputs.BuildRequried == 'False'
