@@ -76,10 +76,6 @@ on:
         required: false
         type: string
         default: ""
-      ServiceLanguage:
-        required: false
-        type: string
-        default: ""
 
 jobs:
   sast:
