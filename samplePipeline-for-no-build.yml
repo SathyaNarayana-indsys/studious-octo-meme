@@ -16,6 +16,7 @@ jobs:
       executionRequired: 'true'
       executionType: 'ServiceRestart'
       ServiceLanguage: 'Python'
+      ServiceDefFile: ''
       serviceLanguageVersion: '3.14' #optional Here
       
       # runScript: ${{ vars.RUN_SCRIPT }}
